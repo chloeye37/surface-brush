@@ -17,7 +17,7 @@ public:
     void initFromVectors(const std::vector<Eigen::Vector3f> &vertices,
                          const std::vector<Eigen::Vector3i> &faces);
 
-    void loadFromFile(const std::string &filePath);
+    void loadFromFile(const std::string &inObjFilePath, const std::string &inPlyFilePath);
     void saveToFile(const std::string &filePath);
 
 private:

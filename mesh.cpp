@@ -9,6 +9,9 @@
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "util/tiny_obj_loader.h"
+#include "util/ply_loader.h"
+
+#include <fstream>
 
 using namespace Eigen;
 using namespace std;
@@ -21,45 +24,48 @@ void Mesh::initFromVectors(const vector<Vector3f> &vertices,
     _faces    = faces;
 }
 
-void Mesh::loadFromFile(const string &filePath)
+void Mesh::loadFromFile(const std::string &inObjFilePath, const std::string &inPlyFilePath)
 {
-    tinyobj::attrib_t attrib;
-    vector<tinyobj::shape_t> shapes;
-    vector<tinyobj::material_t> materials;
+//    tinyobj::attrib_t attrib;
+//    vector<tinyobj::shape_t> shapes;
+//    vector<tinyobj::material_t> materials;
 
-    QFileInfo info(QString(filePath.c_str()));
-    string err;
-    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err,
-                                info.absoluteFilePath().toStdString().c_str(), (info.absolutePath().toStdString() + "/").c_str(), true);
-    if (!err.empty()) {
-        cerr << err << endl;
-    }
+//    QFileInfo info(QString(filePath.c_str()));
+//    string err;
+//    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err,
+//                                info.absoluteFilePath().toStdString().c_str(), (info.absolutePath().toStdString() + "/").c_str(), true);
+//    if (!err.empty()) {
+//        cerr << err << endl;
+//    }
 
-    if (!ret) {
-        cerr << "Failed to load/parse .obj file" << endl;
-        return;
-    }
+//    if (!ret) {
+//        cerr << "Failed to load/parse .obj file" << endl;
+//        return;
+//    }
 
-    for (size_t s = 0; s < shapes.size(); s++) {
-        size_t index_offset = 0;
-        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
-            unsigned int fv = shapes[s].mesh.num_face_vertices[f];
+//    for (size_t s = 0; s < shapes.size(); s++) {
+//        size_t index_offset = 0;
+//        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+//            unsigned int fv = shapes[s].mesh.num_face_vertices[f];
 
-            Vector3i face;
-            for (size_t v = 0; v < fv; v++) {
-                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+//            Vector3i face;
+//            for (size_t v = 0; v < fv; v++) {
+//                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
 
-                face[v] = idx.vertex_index;
-            }
-            _faces.push_back(face);
+//                face[v] = idx.vertex_index;
+//            }
+//            _faces.push_back(face);
 
-            index_offset += fv;
-        }
-    }
-    for (size_t i = 0; i < attrib.vertices.size(); i += 3) {
-        _vertices.emplace_back(attrib.vertices[i], attrib.vertices[i + 1], attrib.vertices[i + 2]);
-    }
-    cout << "Loaded " << _faces.size() << " faces and " << _vertices.size() << " vertices" << endl;
+//            index_offset += fv;
+//        }
+//    }
+//    for (size_t i = 0; i < attrib.vertices.size(); i += 3) {
+//        _vertices.emplace_back(attrib.vertices[i], attrib.vertices[i + 1], attrib.vertices[i + 2]);
+//    }
+//    cout << "Loaded " << _faces.size() << " faces and " << _vertices.size() << " vertices" << endl;
+
+    // load ply file
+    vector<Vector3f> normals = plyLoader::loadFromFile(inPlyFilePath);
 }
 
 void Mesh::saveToFile(const string &filePath)

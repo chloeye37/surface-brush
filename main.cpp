@@ -26,63 +26,18 @@ int main(int argc, char *argv[])
 
     // Parse common inputs
     QSettings settings( args[0], QSettings::IniFormat );
-    QString infile  = settings.value("IO/infile").toString();
-    QString outfile = settings.value("IO/outfile").toString();
-    QString method  = settings.value("Method/method").toString();
-
-    // A note about the representations of other parameters in the .ini files for the various methods:
-
-    // args1:
-    // Subdivide: number of iterations
-    // Simplify:  number of faces to remove
-    // Remesh:    number of iterations
-    // Denoise:   number of iterations
-
-    // args2:
-    // Remesh: Tangential smoothing weight
-    // Denoise: Smoothing parameter 1 (\Sigma_c)
-
-    // args3:
-    // Denoise: Smoothing parameter 2 (\Sigma_s)
-
-    // args4:
-    // Denoise: Kernel size (\rho)
-
+    QString inObjFile  = settings.value("IO/inObjFile").toString();
+    QString inPlyFile  = settings.value("IO/inPlyFile").toString();
+//    QString outfile = settings.value("IO/outfile").toString();
 
     // Load
     Mesh m;
-    m.loadFromFile(infile.toStdString());
+    m.loadFromFile(inObjFile.toStdString(), inPlyFile.toStdString());
 
     // Start timing
     auto t0 = std::chrono::high_resolution_clock::now();
 
-    // Switch on method
-    if (method == "subdivide") {
-        int numIterations = settings.value("Parameters/args1").toInt();
-
-        // TODO
-
-    } else if (method == "simplify") {
-
-        // TODO
-
-    } else if (method == "remesh") {
-
-        // TODO
-
-    } else if (method == "noise") {
-
-        // TODO
-
-    } else if (method == "denoise") {
-
-        // TODO
-
-    } else {
-
-        std::cerr << "Error: Unknown method \"" << method.toUtf8().constData() << "\"" << std::endl;
-
-    }
+    // TODO: our project code goes here
 
     // Finish timing
     auto t1 = std::chrono::high_resolution_clock::now();
@@ -90,7 +45,7 @@ int main(int argc, char *argv[])
     std::cout << "Execution took " << duration << " milliseconds." << std::endl;
 
     // Save
-    m.saveToFile(outfile.toStdString());
+//    m.saveToFile(outfile.toStdString());
 
     a.exit();
 }
