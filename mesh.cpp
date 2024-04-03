@@ -83,21 +83,3 @@ void Mesh::saveToFile(const string &filePath)
 
     outfile.close();
 }
-
-//
-std::vector<std::vector<int>> parse_to_polyline(std::vector<Eigen::Vector2i> connections){
-    std::vector<std::vector<int>> polylines = std::vector<std::vector<int>>();
-    int index = 0;
-    while(index < connections.size()){
-        std::vector<int> currentpoly = std::vector<int>();
-        currentpoly.push_back(connections[index][0]);
-        currentpoly.push_back(connections[index][1]);
-        while(connections[index+1][0] == currentpoly[currentpoly.size()-1]){
-            currentpoly.push_back(connections[index+1][1]);
-            index = index + 1;
-        }
-        polylines.push_back(currentpoly);
-    }
-    //One note. I'm not sure if this will add the last polyline. If not, run polylines.push_back one more time right here:
-    return polylines;
-}
