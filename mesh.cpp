@@ -42,24 +42,31 @@ void Mesh::loadFromFile(const std::string &inObjFilePath, const std::string &inP
 
 void Mesh::saveToFile(const string &filePath)
 {
-//    ofstream outfile;
-//    outfile.open(filePath);
+    ofstream outfile;
+    outfile.open(filePath);
 
-//    // Write vertices
-//    for (size_t i = 0; i < _vertices.size(); i++)
-//    {
-//        const Vector3f &v = _vertices[i];
-//        outfile << "v " << v[0] << " " << v[1] << " " << v[2] << endl;
-//    }
+    // Write vertices
+    for (size_t i = 0; i < _vertices.size(); i++)
+    {
+        const Vector3f &v = _vertices[i];
+        outfile << "v " << v[0] << " " << v[1] << " " << v[2] << endl;
+    }
 
-//    // Write faces
-//    for (size_t i = 0; i < _faces.size(); i++)
-//    {
-//        const Vector3i &f = _faces[i];
-//        outfile << "f " << (f[0]+1) << " " << (f[1]+1) << " " << (f[2]+1) << endl;
-//    }
+    // Write vertex normals
+    for (size_t i = 0; i < _vertexNormals.size(); i++)
+    {
+        const Vector3f &n = _vertexNormals[i];
+        outfile << "vn " << n[0] << " " << n[1] << " " << n[2] << endl;
+    }
 
-//    outfile.close();
+    // Write faces
+    for (size_t i = 0; i < _faces.size(); i++)
+    {
+        const Vector3i &f = _faces[i];
+        outfile << "f " << (f[0]+1) << " " << (f[1]+1) << " " << (f[2]+1) << endl;
+    }
+
+    outfile.close();
 }
 
 // -------- PUBLIC ENDS -------------------------------------------------------------------------------
@@ -85,10 +92,6 @@ vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections) {
     }
     //One note. I'm not sure if this will add the last polyline. If not, run polylines.push_back one more time right here:
     return polylines;
-}
-
-void Mesh::loadIntoDataStructure() {
-    //
 }
 
 // -------- PRIVATE ENDS -------------------------------------------------------------------------------

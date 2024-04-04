@@ -27,8 +27,8 @@ private:
     vector<Vector3f> _vertices;
     vector<vector<int>> _lines;
     vector<Vector3f> _vertexNormals;
+    vector<Vector3f> _faces;
 
     // helpers
     vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
-    void loadIntoDataStructure();
 };
