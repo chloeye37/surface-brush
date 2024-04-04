@@ -18,7 +18,7 @@ public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
     void initFromVectors(const vector<Vector3f> &vertices,
-                         const vector<Vector3i> &faces);
+                         const vector<vector<int>> &lines);
 
     void loadFromFile(const string &inObjFilePath, const string &inPlyFilePath);
     void saveToFile(const string &filePath);

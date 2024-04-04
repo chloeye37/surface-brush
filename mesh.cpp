@@ -17,11 +17,11 @@
 // -------- PUBLIC STARTS -------------------------------------------------------------------------------
 
 void Mesh::initFromVectors(const vector<Vector3f> &vertices,
-                           const vector<Vector3i> &faces)
+                           const vector<vector<int>> &lines)
 {
     // Copy vertices and faces into internal vector
     _vertices = vertices;
-    _faces    = faces;
+    _lines    = lines;
 }
 
 void Mesh::loadFromFile(const std::string &inObjFilePath, const std::string &inPlyFilePath)
@@ -42,24 +42,24 @@ void Mesh::loadFromFile(const std::string &inObjFilePath, const std::string &inP
 
 void Mesh::saveToFile(const string &filePath)
 {
-    ofstream outfile;
-    outfile.open(filePath);
+//    ofstream outfile;
+//    outfile.open(filePath);
 
-    // Write vertices
-    for (size_t i = 0; i < _vertices.size(); i++)
-    {
-        const Vector3f &v = _vertices[i];
-        outfile << "v " << v[0] << " " << v[1] << " " << v[2] << endl;
-    }
+//    // Write vertices
+//    for (size_t i = 0; i < _vertices.size(); i++)
+//    {
+//        const Vector3f &v = _vertices[i];
+//        outfile << "v " << v[0] << " " << v[1] << " " << v[2] << endl;
+//    }
 
-    // Write faces
-    for (size_t i = 0; i < _faces.size(); i++)
-    {
-        const Vector3i &f = _faces[i];
-        outfile << "f " << (f[0]+1) << " " << (f[1]+1) << " " << (f[2]+1) << endl;
-    }
+//    // Write faces
+//    for (size_t i = 0; i < _faces.size(); i++)
+//    {
+//        const Vector3i &f = _faces[i];
+//        outfile << "f " << (f[0]+1) << " " << (f[1]+1) << " " << (f[2]+1) << endl;
+//    }
 
-    outfile.close();
+//    outfile.close();
 }
 
 // -------- PUBLIC ENDS -------------------------------------------------------------------------------
