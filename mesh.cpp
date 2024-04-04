@@ -95,8 +95,6 @@ void Mesh::saveToFile(const string &outStrokeFilePath, const string &outMeshFile
 void Mesh::preprocessLines(){
     // Have: vector<vector<int>> _lines;  vector<Vector3f> _vertexNormals;
     vector<vector<int>> new_lines;
-    int itr = 0;
-//    std::cout << "Number of lines: " << _lines.size() << std::endl;
     // process each line at a time
     for (auto & line : _lines) {
         // first calculate line length -- sum of all segment lengths
@@ -124,7 +122,6 @@ void Mesh::preprocessLines(){
             if (acos(cur_tangent.dot(prev_tangent) / (cur_tangent.norm()*prev_tangent.norm())) > M_PI/4.0) {
                 // remove everything before vertex B (starting from A)
                 cut_pos_forward = next_vert;
-//                std::cout << "--------inside removing condition" << std::endl;
             }
             // move on to the next segment
             prev_tangent = cur_tangent;
@@ -164,23 +161,17 @@ void Mesh::preprocessLines(){
             new_line.push_back(line[i]);
         }
         new_lines.push_back(new_line);
-
         // remove vertices and normals from _vertices and _vertexNormals
         for (int i = 0; i < cut_pos_forward; i++) {
-            _isActive[line[i]] = false;
-//            _vertices.erase(_vertices.begin() + line[i] - 1); //erase the (line[i]+1-1)th element
-//            _vertexNormals.erase(_vertexNormals.begin() + line[i] - 1);
+            _vertices.erase(_vertices.begin() + line[i] - 1); //erase the (line[i]+1-1)th element
+            _vertexNormals.erase(_vertexNormals.begin() + line[i] - 1);
         }
-
         for (int i = n-1; i > cut_pos_backward; i--) {
-            _isActive[line[i]] = false;
-//            _vertices.erase(_vertices.begin() + line[i] - 1); // erase the (line[i]+1-1)th element
-//            _vertexNormals.erase(_vertexNormals.begin() + line[i] - 1);
+            _vertices.erase(_vertices.begin() + line[i] - 1); //erase the (line[i]+1-1)th element
+            _vertexNormals.erase(_vertexNormals.begin() + line[i] - 1);
         }
-//        std::cout << "After: vertices number: " << _vertices.size() << std::endl;
-        itr++;
     }
-    _lines = new_lines;
+
 }
 
 // -------- PUBLIC ENDS -------------------------------------------------------------------------------
