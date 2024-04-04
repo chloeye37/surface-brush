@@ -5,22 +5,30 @@
 #include "Eigen/StdVector"
 #include "Eigen/Dense"
 
-EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Eigen::Matrix2f);
-EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Eigen::Matrix3f);
-EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Eigen::Matrix3i);
+using namespace Eigen;
+using namespace std;
+
+EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Matrix2f);
+EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Matrix3f);
+EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Matrix3i);
 
 class Mesh
 {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-    void initFromVectors(const std::vector<Eigen::Vector3f> &vertices,
-                         const std::vector<Eigen::Vector3i> &faces);
+    void initFromVectors(const vector<Vector3f> &vertices,
+                         const vector<Vector3i> &faces);
 
-    void loadFromFile(const std::string &inObjFilePath, const std::string &inPlyFilePath);
-    void saveToFile(const std::string &filePath);
+    void loadFromFile(const string &inObjFilePath, const string &inPlyFilePath);
+    void saveToFile(const string &filePath);
 
 private:
-    std::vector<Eigen::Vector3f> _vertices;
-    std::vector<Eigen::Vector3i> _faces;
+    vector<Vector3f> _vertices;
+    vector<vector<int>> _lines;
+    vector<Vector3f> _vertexNormals;
+
+    // helpers
+    vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
+    void loadIntoDataStructure();
 };

@@ -11,8 +11,10 @@ using namespace Eigen;
 using namespace std;
 
 namespace plyLoader {
-    // load normals
-    vector<Vector3f> loadFromFile(string fileName);
+
+// load normals
+vector<Vector3f> loadFromFile(string fileName);
+
 }
 
 #endif // PLY_LOADER_H

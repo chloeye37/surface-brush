@@ -10,11 +10,11 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "util/tiny_obj_loader.h"
 #include "util/ply_loader.h"
+#include "util/obj_loader.h"
 
 #include <fstream>
 
-using namespace Eigen;
-using namespace std;
+// -------- PUBLIC STARTS -------------------------------------------------------------------------------
 
 void Mesh::initFromVectors(const vector<Vector3f> &vertices,
                            const vector<Vector3i> &faces)
@@ -26,46 +26,18 @@ void Mesh::initFromVectors(const vector<Vector3f> &vertices,
 
 void Mesh::loadFromFile(const std::string &inObjFilePath, const std::string &inPlyFilePath)
 {
-//    tinyobj::attrib_t attrib;
-//    vector<tinyobj::shape_t> shapes;
-//    vector<tinyobj::material_t> materials;
-
-//    QFileInfo info(QString(filePath.c_str()));
-//    string err;
-//    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err,
-//                                info.absoluteFilePath().toStdString().c_str(), (info.absolutePath().toStdString() + "/").c_str(), true);
-//    if (!err.empty()) {
-//        cerr << err << endl;
-//    }
-
-//    if (!ret) {
-//        cerr << "Failed to load/parse .obj file" << endl;
-//        return;
-//    }
-
-//    for (size_t s = 0; s < shapes.size(); s++) {
-//        size_t index_offset = 0;
-//        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
-//            unsigned int fv = shapes[s].mesh.num_face_vertices[f];
-
-//            Vector3i face;
-//            for (size_t v = 0; v < fv; v++) {
-//                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
-
-//                face[v] = idx.vertex_index;
-//            }
-//            _faces.push_back(face);
-
-//            index_offset += fv;
-//        }
-//    }
-//    for (size_t i = 0; i < attrib.vertices.size(); i += 3) {
-//        _vertices.emplace_back(attrib.vertices[i], attrib.vertices[i + 1], attrib.vertices[i + 2]);
-//    }
-//    cout << "Loaded " << _faces.size() << " faces and " << _vertices.size() << " vertices" << endl;
+    // load obj file
+    pair<vector<Vector3f>, vector<Vector2i>> verticesAndLineSegments = objLoader::loadFromFile(inObjFilePath);
+    vector<Vector3f> vertices = verticesAndLineSegments.first;
+    vector<Vector2i> lineSegments = verticesAndLineSegments.second;
+    vector<vector<int>> lines = this->parseToPolyline(lineSegments);
 
     // load ply file
     vector<Vector3f> normals = plyLoader::loadFromFile(inPlyFilePath);
+
+    this->_vertices = vertices;
+    this->_lines = lines;
+    this->_vertexNormals = normals;
 }
 
 void Mesh::saveToFile(const string &filePath)
@@ -90,8 +62,14 @@ void Mesh::saveToFile(const string &filePath)
     outfile.close();
 }
 
-//
-std::vector<std::vector<int>> parse_to_polyline(std::vector<Eigen::Vector2i> connections){
+// -------- PUBLIC ENDS -------------------------------------------------------------------------------
+
+
+
+
+// -------- PRIVATE STARTS -------------------------------------------------------------------------------
+
+vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections) {
     std::vector<std::vector<int>> polylines = std::vector<std::vector<int>>();
     int index = 0;
     while(index < connections.size()){
@@ -107,3 +85,10 @@ std::vector<std::vector<int>> parse_to_polyline(std::vector<Eigen::Vector2i> con
     //One note. I'm not sure if this will add the last polyline. If not, run polylines.push_back one more time right here:
     return polylines;
 }
+
+void Mesh::loadIntoDataStructure() {
+    //
+}
+
+// -------- PRIVATE ENDS -------------------------------------------------------------------------------
+
