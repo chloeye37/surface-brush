@@ -73,11 +73,12 @@ vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections) {
     std::vector<std::vector<int>> polylines = std::vector<std::vector<int>>();
     int index = 0;
     while(index < connections.size()){
-        std::vector<int> currentpoly = std::vector<int>();
+        vector<int> currentpoly = std::vector<int>();
         currentpoly.push_back(connections[index][0]);
         currentpoly.push_back(connections[index][1]);
-        while(connections[index+1][0] == currentpoly[currentpoly.size()-1]){
-            currentpoly.push_back(connections[index+1][1]);
+        index = index + 1;
+        while(connections[index][0] == currentpoly[currentpoly.size()-1]){
+            currentpoly.push_back(connections[index][1]);
             index = index + 1;
         }
         polylines.push_back(currentpoly);
