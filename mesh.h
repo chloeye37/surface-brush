@@ -29,6 +29,7 @@ private:
     vector<Vector3f> _vertices;
     vector<vector<int>> _lines;
     vector<Vector3f> _vertexNormals;
+    vector<bool> _isActive; // records whether the corresponding vertex has been deleted or not: if isActive is false then it has been deleted
     vector<Vector3f> _faces;
 
     // helpers
