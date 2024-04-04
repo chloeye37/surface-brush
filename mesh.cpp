@@ -82,6 +82,91 @@ void Mesh::saveToFile(const string &outStrokeFilePath, const string &outMeshFile
     outMeshFile.close();
 }
 
+
+// Preprocess the lines: check if the strokes have an abrupt direction change (angle of 45◦ or less between consecutive tangents)
+// within 15% of overall stroke length from either end and remove the offending end-sections.
+void Mesh::preprocessLines(){
+    // Have: vector<vector<int>> _lines;  vector<Vector3f> _vertexNormals;
+    vector<vector<int>> new_lines;
+    // process each line at a time
+    for (auto & line : _lines) {
+        // first calculate line length -- sum of all segment lengths
+        float total_length = 0;
+        for (int i = 1; i < line.size(); i++) {
+            // distance between vertex i and vertex i-1
+            total_length += (_vertices[line[i]] - _vertices[line[i-1]]).norm();
+        }
+
+        float length_covered = 0;
+        // forward direction: start to end until length_covered > 0.15 * total_length
+        // calculate the tangents along the way and test if they differ by more than 45 degrees
+        Vector3f prev_tangent = _vertices[line[1]] - _vertices[line[0]]; // tangent of the first vertex is just the line segment direction
+        int cur_vert = 0; int next_vert = 1;
+        int cut_pos_forward = 0; // the vertex at which we should cut the line (remove every vertex before this cut_pos)
+        while (length_covered < 0.15 * total_length) {
+            Vector3f curA = _vertices[line[cur_vert]];
+            Vector3f curB = _vertices[line[next_vert]];
+            Vector3f curC = _vertices[line[next_vert+1]];
+            Vector3f AC = curC - curA;
+            Vector3f B_normal = _vertexNormals[line[next_vert]];
+            Vector3f AC_parallel =  AC.dot(B_normal) / (B_normal.norm()*B_normal.norm()) * B_normal; // AC projected onto the direction of normal
+
+            Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
+            if (acos(cur_tangent.dot(prev_tangent) / (cur_tangent.norm()*prev_tangent.norm())) > M_PI/4.0) {
+                // remove everything before vertex B (starting from A)
+                cut_pos_forward = next_vert;
+            }
+            // move on to the next segment
+            prev_tangent = cur_tangent;
+            length_covered += (curB - curA).norm();
+            cur_vert++; next_vert++;
+        }
+
+        // backward direction: end to start
+        int n = line.size();
+        length_covered = 0;
+        prev_tangent = _vertices[line[n-2]] - _vertices[line[n-1]]; // tangent of the first vertex is just the line segment direction
+        cur_vert = n-1; next_vert = n-2;
+        int cut_pos_backward = n-1; // the vertex at which we should cut the line (remove every vertex after this cut_pos)
+        while (length_covered < 0.15 * total_length) {
+            Vector3f curA = _vertices[line[cur_vert]];
+            Vector3f curB = _vertices[line[next_vert]];
+            Vector3f curC = _vertices[line[next_vert-1]];
+            Vector3f AC = curC - curA;
+            Vector3f B_normal = _vertexNormals[line[next_vert]];
+            Vector3f AC_parallel =  AC.dot(B_normal) / (B_normal.norm()*B_normal.norm()) * B_normal; // AC projected onto the direction of normal
+
+            Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
+            if (acos(cur_tangent.dot(prev_tangent) / (cur_tangent.norm()*prev_tangent.norm())) > M_PI/4.0) {
+                // remove everything before vertex B (starting from A)
+                cut_pos_backward = next_vert;
+            }
+            // move on to the next segment
+            prev_tangent = cur_tangent;
+            length_covered += (curB - curA).norm();
+            cur_vert--; next_vert--;
+        }
+
+        // remove everything before cut_pos_forward and after cut_pos_backward
+        // need to modify: _vertices (vector<Vector3f>), _lines (vector<vector<int>>), _vertexNormals (vector<Vector3f>)
+        vector<int> new_line;
+        for (int i = cut_pos_forward; i <= cut_pos_backward; i++) {
+            new_line.push_back(line[i]);
+        }
+        new_lines.push_back(new_line);
+        // remove vertices and normals from _vertices and _vertexNormals
+        for (int i = 0; i < cut_pos_forward; i++) {
+            _vertices.erase(_vertices.begin() + line[i] - 1); //erase the (line[i]+1-1)th element
+            _vertexNormals.erase(_vertexNormals.begin() + line[i] - 1);
+        }
+        for (int i = n-1; i > cut_pos_backward; i--) {
+            _vertices.erase(_vertices.begin() + line[i] - 1); //erase the (line[i]+1-1)th element
+            _vertexNormals.erase(_vertexNormals.begin() + line[i] - 1);
+        }
+    }
+
+}
+
 // -------- PUBLIC ENDS -------------------------------------------------------------------------------
 
 

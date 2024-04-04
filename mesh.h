@@ -23,6 +23,8 @@ public:
     void loadFromFile(const string &inObjFilePath, const string &inPlyFilePath);
     void saveToFile(const string &outStrokeFilePath, const string &outMeshFilePath);
 
+    void preprocessLines();
+
 private:
     vector<Vector3f> _vertices;
     vector<vector<int>> _lines;
