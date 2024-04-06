@@ -40,33 +40,46 @@ void Mesh::loadFromFile(const std::string &inObjFilePath, const std::string &inP
     this->_vertexNormals = normals;
 }
 
-void Mesh::saveToFile(const string &filePath)
+void Mesh::saveToFile(const string &outStrokeFilePath, const string &outMeshFilePath)
 {
-    ofstream outfile;
-    outfile.open(filePath);
+    ofstream outStrokeFile;
+    outStrokeFile.open(outStrokeFilePath);
+
+    ofstream outMeshFile;
+    outMeshFile.open(outMeshFilePath);
 
     // Write vertices
     for (size_t i = 0; i < _vertices.size(); i++)
     {
         const Vector3f &v = _vertices[i];
-        outfile << "v " << v[0] << " " << v[1] << " " << v[2] << endl;
+        outMeshFile << "v " << v[0] << " " << v[1] << " " << v[2] << endl;
     }
 
     // Write vertex normals
     for (size_t i = 0; i < _vertexNormals.size(); i++)
     {
         const Vector3f &n = _vertexNormals[i];
-        outfile << "vn " << n[0] << " " << n[1] << " " << n[2] << endl;
+        outMeshFile << "vn " << n[0] << " " << n[1] << " " << n[2] << endl;
     }
 
-    // Write faces
+    // Write faces (MESH ONLY)
     for (size_t i = 0; i < _faces.size(); i++)
     {
         const Vector3i &f = _faces[i];
-        outfile << "f " << (f[0]+1) << " " << (f[1]+1) << " " << (f[2]+1) << endl;
+        outMeshFile << "f " << (f[0]+1) << " " << (f[1]+1) << " " << (f[2]+1) << endl;
     }
 
-    outfile.close();
+    // Write line segments (STROKE ONLY)
+    for (size_t i = 0; i < _lines.size(); i++)
+    {
+        const vector<int> &l = _lines[i];
+        for (size_t j = 0; j < l.size() - 1; j++) {
+            outStrokeFile << "l " << (l[j]+1) << " " << (l[j+1]+1) << endl;
+        }
+    }
+
+    outStrokeFile.close();
+    outMeshFile.close();
 }
 
 // -------- PUBLIC ENDS -------------------------------------------------------------------------------

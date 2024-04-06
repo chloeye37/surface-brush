@@ -28,7 +28,9 @@ int main(int argc, char *argv[])
     QSettings settings( args[0], QSettings::IniFormat );
     QString inObjFile  = settings.value("IO/inObjFile").toString();
     QString inPlyFile  = settings.value("IO/inPlyFile").toString();
-//    QString outfile = settings.value("IO/outfile").toString();
+    QString outStrokeFile = settings.value("IO/outStrokeFile").toString();
+    QString outMeshFile = settings.value("IO/outMeshFile").toString();
+
 
     // Load
     Mesh m;
@@ -45,7 +47,7 @@ int main(int argc, char *argv[])
     std::cout << "Execution took " << duration << " milliseconds." << std::endl;
 
     // Save
-//    m.saveToFile(outfile.toStdString());
+    m.saveToFile(outStrokeFile.toStdString(), outMeshFile.toStdString());
 
     a.exit();
 }

@@ -21,7 +21,7 @@ public:
                          const vector<vector<int>> &lines);
 
     void loadFromFile(const string &inObjFilePath, const string &inPlyFilePath);
-    void saveToFile(const string &filePath);
+    void saveToFile(const string &outStrokeFilePath, const string &outMeshFilePath);
 
 private:
     vector<Vector3f> _vertices;
