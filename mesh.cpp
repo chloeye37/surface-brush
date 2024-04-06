@@ -35,16 +35,54 @@ void Mesh::loadFromFile(const std::string &inObjFilePath, const std::string &inP
     // load ply file
     vector<Vector3f> normals = plyLoader::loadFromFile(inPlyFilePath);
 
-    // initialize the isActive vector to be all true
+    // initialize the isActive vector to be all true --- we don't need this anymore now that we have the Vertex struct
     vector<bool> isActive;
     for (int i = 0; i < vertices.size(); i++) {
         isActive.push_back(true);
+    }
+
+    // populate the _m_vertices vector
+    vector<Vertex> m_vertices;
+    for (int i = 0; i < vertices.size(); i++) {
+        Vertex vertex;
+        vertex.isActive = true;
+        vertex.position = vertices[i];
+        // vertex.tangent is set later in calculateTangents()
+        m_vertices.push_back(vertex);
     }
 
     this->_vertices = vertices;
     this->_lines = lines;
     this->_vertexNormals = normals;
     this->_isActive = isActive;
+    this->_m_vertices = m_vertices;
+}
+
+void Mesh::calculateTangents() {
+    // loop through all lines
+    for (auto & line : _lines) {
+        int n = line.size();
+        // loop through all vertices on the line
+        Vector3f first_tangent = _vertices[line[1]] - _vertices[line[0]]; // tangent of the first vertex is just the line segment direction
+        _m_vertices[line[0]].tangent = first_tangent;
+
+        for (int i = 1; i < n - 1; i++) {
+            Vector3f curA = _vertices[line[i-1]];
+            Vector3f curB = _vertices[line[i]];
+            Vector3f curC = _vertices[line[i+1]];
+            Vector3f AC = curC - curA;
+            Vector3f B_normal = _vertexNormals[line[i]];
+            Vector3f AC_parallel =  AC.dot(B_normal) / (B_normal.norm()*B_normal.norm()) * B_normal; // AC projected onto the direction of normal
+
+            Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
+            _m_vertices[line[i]].tangent = cur_tangent;
+
+        }
+        Vector3f last_tangent = _vertices[line[n-1]] - _vertices[line[n-2]]; // tangent of the last vertex is just the line segment direction
+        _m_vertices[line[n-1]].tangent = last_tangent;
+
+    }
+
 }
 
 void Mesh::saveToFile(const string &outStrokeFilePath, const string &outMeshFilePath)
@@ -167,13 +205,13 @@ void Mesh::preprocessLines(){
 
         // remove vertices and normals from _vertices and _vertexNormals
         for (int i = 0; i < cut_pos_forward; i++) {
-            _isActive[line[i]] = false;
+            _m_vertices[line[i]].isActive = false; _isActive[line[i]] = false;
 //            _vertices.erase(_vertices.begin() + line[i] - 1); //erase the (line[i]+1-1)th element
 //            _vertexNormals.erase(_vertexNormals.begin() + line[i] - 1);
         }
 
         for (int i = n-1; i > cut_pos_backward; i--) {
-            _isActive[line[i]] = false;
+            _m_vertices[line[i]].isActive = false; _isActive[line[i]] = false;
 //            _vertices.erase(_vertices.begin() + line[i] - 1); // erase the (line[i]+1-1)th element
 //            _vertexNormals.erase(_vertexNormals.begin() + line[i] - 1);
         }
