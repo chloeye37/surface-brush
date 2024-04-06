@@ -40,6 +40,8 @@ int main(int argc, char *argv[])
     auto t0 = std::chrono::high_resolution_clock::now();
 
     // TODO: our project code goes here
+    m.preprocessLines();
+    std::cout << "Strips preprocessed." << std::endl;
 
     // Finish timing
     auto t1 = std::chrono::high_resolution_clock::now();
