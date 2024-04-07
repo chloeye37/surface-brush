@@ -50,6 +50,7 @@ int main(int argc, char *argv[])
 
     // Save
     m.saveToFile(outStrokeFile.toStdString(), outMeshFile.toStdString());
+    std::cout << "Saved to file." << std::endl;
 
     a.exit();
 }

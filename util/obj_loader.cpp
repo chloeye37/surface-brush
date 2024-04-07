@@ -36,7 +36,7 @@ pair<vector<Vector3f>, vector<Vector2i>> objLoader::loadFromFile(string fileName
             if (matches != 2){
                 cerr << "File can't be read by our simple parser : ( Try exporting with other options\n" << endl;
             }
-            lineSegments.push_back(Vector2i(vertexIndex[0], vertexIndex[1]));
+            lineSegments.push_back(Vector2i(vertexIndex[0]-1, vertexIndex[1]-1)); // offset of 1 to make the vertices 0-indexed instead of 1-indexed
         }
     }
 

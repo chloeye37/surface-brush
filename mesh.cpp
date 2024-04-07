@@ -35,18 +35,13 @@ void Mesh::loadFromFile(const std::string &inObjFilePath, const std::string &inP
     // load ply file
     vector<Vector3f> normals = plyLoader::loadFromFile(inPlyFilePath);
 
-    // initialize the isActive vector to be all true --- we don't need this anymore now that we have the Vertex struct
-    vector<bool> isActive;
-    for (int i = 0; i < vertices.size(); i++) {
-        isActive.push_back(true);
-    }
-
     // populate the _m_vertices vector
     vector<Vertex> m_vertices;
     for (int i = 0; i < vertices.size(); i++) {
         Vertex vertex;
         vertex.isActive = true;
         vertex.position = vertices[i];
+        vertex.normal = normals[i];
         // vertex.tangent is set later in calculateTangents()
         m_vertices.push_back(vertex);
     }
@@ -54,7 +49,6 @@ void Mesh::loadFromFile(const std::string &inObjFilePath, const std::string &inP
     this->_vertices = vertices;
     this->_lines = lines;
     this->_vertexNormals = normals;
-    this->_isActive = isActive;
     this->_m_vertices = m_vertices;
 }
 
@@ -94,17 +88,20 @@ void Mesh::saveToFile(const string &outStrokeFilePath, const string &outMeshFile
     outMeshFile.open(outMeshFilePath);
 
     // Write vertices
-    for (size_t i = 0; i < _vertices.size(); i++)
+    for (size_t i = 0; i < _m_vertices.size(); i++)
     {
-        const Vector3f &v = _vertices[i];
-        outMeshFile << "v " << v[0] << " " << v[1] << " " << v[2] << endl;
+        Vertex v = _m_vertices[i];
+        outMeshFile << "v " << v.position[0] << " " << v.position[1] << " " << v.position[2] << endl;
+        outStrokeFile << "v " << v.position[0] << " " << v.position[1] << " " << v.position[2] << endl;
+
     }
 
     // Write vertex normals
-    for (size_t i = 0; i < _vertexNormals.size(); i++)
+    for (size_t i = 0; i < _m_vertices.size(); i++)
     {
-        const Vector3f &n = _vertexNormals[i];
-        outMeshFile << "vn " << n[0] << " " << n[1] << " " << n[2] << endl;
+        Vertex v = _m_vertices[i];
+        outMeshFile << "vn " << v.normal[0] << " " << v.normal[1] << " " << v.normal[2] << endl;
+
     }
 
     // Write faces (MESH ONLY)
@@ -205,20 +202,46 @@ void Mesh::preprocessLines(){
 
         // remove vertices and normals from _vertices and _vertexNormals
         for (int i = 0; i < cut_pos_forward; i++) {
-            _m_vertices[line[i]].isActive = false; _isActive[line[i]] = false;
-//            _vertices.erase(_vertices.begin() + line[i] - 1); //erase the (line[i]+1-1)th element
-//            _vertexNormals.erase(_vertexNormals.begin() + line[i] - 1);
+            _m_vertices[line[i]].isActive = false;
+//            if (line[i] <= 3000) std::cout << line[i] << std::endl;
         }
 
         for (int i = n-1; i > cut_pos_backward; i--) {
-            _m_vertices[line[i]].isActive = false; _isActive[line[i]] = false;
-//            _vertices.erase(_vertices.begin() + line[i] - 1); // erase the (line[i]+1-1)th element
-//            _vertexNormals.erase(_vertexNormals.begin() + line[i] - 1);
+            _m_vertices[line[i]].isActive = false;
+//            if (line[i] <= 3000) std::cout << line[i] << std::endl;
         }
-//        std::cout << "After: vertices number: " << _vertices.size() << std::endl;
         itr++;
     }
     _lines = new_lines;
+    // update the _m_vertices and _lines (using the correct indices)
+    // first delete from _lines according to isActive -- done in the previous loop
+    // then erase from _m_vertices and process _lines again
+    // create reindexing map
+    std::map<int, int> index_map; // old index -> new index
+    vector<int> remove_indices;
+    int active_number = 0;
+    for (int i = 0; i < _m_vertices.size(); i++) {
+        if (_m_vertices[i].isActive) {
+            index_map[i] = active_number;
+            active_number++;
+        }else {
+            remove_indices.push_back(i);
+        }
+    }
+    // delete from _m_vertices
+    for (int index : remove_indices) {
+        _m_vertices.erase(_m_vertices.begin() + index - 1);
+    }
+    // remap the vertex indices in _lines
+    vector<vector<int>> final_lines;
+    for (auto &line : _lines) {
+        vector<int> final_line;
+        for (int vertex : line) {
+            final_line.push_back(index_map[vertex]);
+        }
+        final_lines.push_back(final_line);
+    }
+    _lines = final_lines;
 }
 
 // -------- PUBLIC ENDS -------------------------------------------------------------------------------

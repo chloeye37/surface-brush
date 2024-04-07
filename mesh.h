@@ -16,7 +16,7 @@ struct Vertex{
     Eigen::Vector3f position;
     bool isActive; // records whether the corresponding vertex has been deleted or not: if isActive is false then it has been deleted
     Eigen::Vector3f tangent; // tangent vector
-
+    Eigen::Vector3f normal; // normal vector
 
 //    int index; // index of the vertex in _vertices
 
@@ -41,8 +41,7 @@ private:
     vector<Vector3f> _vertices;
     vector<vector<int>> _lines;
     vector<Vector3f> _vertexNormals;
-    vector<bool> _isActive; // records whether the corresponding vertex has been deleted or not: if isActive is false then it has been deleted
-    vector<Vector3f> _faces;
+    vector<Vector3i> _faces;
     vector<Vertex> _m_vertices; // vector of all vertex structs
 
     // helpers
