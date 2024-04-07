@@ -50,6 +50,8 @@ void Mesh::loadFromFile(const std::string &inObjFilePath, const std::string &inP
     this->_lines = lines;
     this->_vertexNormals = normals;
     this->_m_vertices = m_vertices;
+
+    calculateTangents();
 }
 
 void Mesh::calculateTangents() {
