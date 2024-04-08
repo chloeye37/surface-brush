@@ -25,6 +25,10 @@ add_executable(${PROJECT_NAME}
     
     mesh.h
     util/tiny_obj_loader.h
+    util/ply_loader.h
+    util/ply_loader.cpp
+    util/obj_loader.h
+    util/obj_loader.cpp
 )
 
 # Specifies libraries to be linked (Qt components, glew, etc)

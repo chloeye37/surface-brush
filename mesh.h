@@ -5,22 +5,45 @@
 #include "Eigen/StdVector"
 #include "Eigen/Dense"
 
-EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Eigen::Matrix2f);
-EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Eigen::Matrix3f);
-EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Eigen::Matrix3i);
+using namespace Eigen;
+using namespace std;
+
+EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Matrix2f);
+EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Matrix3f);
+EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Matrix3i);
+
+struct Vertex{
+    Eigen::Vector3f position;
+    bool isActive; // records whether the corresponding vertex has been deleted or not: if isActive is false then it has been deleted
+    Eigen::Vector3f tangent; // tangent vector
+    Eigen::Vector3f normal; // normal vector
+
+//    int index; // index of the vertex in _vertices
+
+};
+
 
 class Mesh
 {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-    void initFromVectors(const std::vector<Eigen::Vector3f> &vertices,
-                         const std::vector<Eigen::Vector2i> &faces);
+    void initFromVectors(const vector<Vector3f> &vertices,
+                         const vector<vector<int>> &lines);
 
-    void loadFromFile(const std::string &filePath);
-    void saveToFile(const std::string &filePath);
+    void loadFromFile(const string &inObjFilePath, const string &inPlyFilePath);
+    void saveToFile(const string &outStrokeFilePath, const string &outMeshFilePath);
+
+    void preprocessLines();
+    void calculateTangents();
 
 private:
-    std::vector<Eigen::Vector3f> _vertices;
-    std::vector<Eigen::Vector2i> _faces;
+    vector<Vector3f> _vertices;
+    vector<vector<int>> _lines;
+    vector<Vector3f> _vertexNormals;
+    vector<Vector3i> _faces;
+    vector<Vertex> _m_vertices; // vector of all vertex structs
+
+    // helpers
+    vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
 };
