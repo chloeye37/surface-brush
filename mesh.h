@@ -15,12 +15,12 @@ public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
     void initFromVectors(const std::vector<Eigen::Vector3f> &vertices,
-                         const std::vector<Eigen::Vector3i> &faces);
+                         const std::vector<Eigen::Vector2i> &faces);
 
     void loadFromFile(const std::string &filePath);
     void saveToFile(const std::string &filePath);
 
 private:
     std::vector<Eigen::Vector3f> _vertices;
-    std::vector<Eigen::Vector3i> _faces;
+    std::vector<Eigen::Vector2i> _faces;
 };

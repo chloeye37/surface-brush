@@ -14,7 +14,7 @@ using namespace Eigen;
 using namespace std;
 
 void Mesh::initFromVectors(const vector<Vector3f> &vertices,
-                           const vector<Vector3i> &faces)
+                           const vector<Vector2i> &faces)
 {
     // Copy vertices and faces into internal vector
     _vertices = vertices;
