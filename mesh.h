@@ -41,6 +41,8 @@ public:
     void cleanUp(); // perform any cleaning up at the end
 
 private:
+    float strokewidth = 0.5;
+    float sigma = 1.5*(strokewidth+strokewidth)/2;
     vector<Vertex*> _vertices;
     vector<vector<int>> _lines;
     vector<Vector3i> _faces;
