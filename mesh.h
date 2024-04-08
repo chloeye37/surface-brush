@@ -49,4 +49,6 @@ private:
 
     // helpers
     vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
+    // ------- match computation
+    float vertexVertexScore(Vertex* P, Vertex* Q, bool leftside);
 };

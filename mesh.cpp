@@ -258,15 +258,15 @@ vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections) {
     return polylines;
 }
 
-float Mesh::vertexVertexScore(Vertex P, Vertex Q, bool leftside){
-    Vector3f p = P.position;
-    Vector3f q = Q.position;
-    Vector3f tp = P.tangent;
-    Vector3f tq = Q.tangent;
-    Vector3f pb = (tp.cross(P.normal)).normalize();
-    Vector3f qb = (tq.cross(Q.normal)).normalize();
+float Mesh::vertexVertexScore(Vertex* P, Vertex* Q, bool leftside) {
+    Vector3f p = P->position;
+    Vector3f q = Q->position;
+    Vector3f tp = P->tangent;
+    Vector3f tq = Q->tangent;
+    Vector3f pb = (tp.cross(P->normal)).normalized();
+    Vector3f qb = (tq.cross(Q->normal)).normalized();
     float da = (p-q).norm();
-    float dt = 0.5*(((p-q).dot(tp)).norm()+((p-q).dot(tq)).norm());
+    float dt = 0.5*(abs((p-q).dot(tp)) + abs((p-q).dot(tq)));
     //This is specifically for a left match.
     Vector3f pc;
     if(leftside){
@@ -289,7 +289,7 @@ float Mesh::vertexVertexScore(Vertex P, Vertex Q, bool leftside){
     Vector3f mpqprime = 0.5*(pc+qc);
     Vector3f mpq = 0.5*(p+q);
     float dln = (mpq-mpqprime).norm();
-    float finalscore = exp(-pow(da+dt+dln,2)/(2.f*sigma^2));
+    float finalscore = exp(-pow(da+dt+dln,2)/(2.f*pow(sigma, 2.f)));
     return finalscore;
 }
 
