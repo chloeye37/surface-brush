@@ -38,6 +38,8 @@ public:
     void calculateTangents();
 
 private:
+    float strokewidth = 0.5;
+    float sigma = 1.5*(strokewidth+strokewidth)/2;
     vector<Vector3f> _vertices;
     vector<vector<int>> _lines;
     vector<Vector3f> _vertexNormals;
