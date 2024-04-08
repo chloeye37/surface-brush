@@ -70,5 +70,8 @@ int main(int argc, char *argv[])
     m.saveToFile(outStrokeFile.toStdString(), outMeshFile.toStdString());
     std::cout << "Saved to file." << std::endl;
 
+    // Clean up
+    m.cleanUp();
+
     // a.exit();
 }
