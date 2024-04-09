@@ -70,6 +70,7 @@ private:
     vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
     // ------- match computation
     float vertexVertexScore(Vertex* P, Vertex* Q, bool leftside);
+    float persistenceScore(Vertex* Pi, Vertex* Qi, Vertex* Pi_1, Vertex* Qi_1); // Qi is the match of Pi, Qi_1 is the match of Pi_1; Pi and Pi_1 are consecutive vertices
     // ------- restricted matching
 //    void getRestrictedMatchingCandidates();
     pair<vector<int>, vector<int>> splitStrokesIntoLeftRight(int baseStrokeIndex);
