@@ -1,6 +1,8 @@
 #pragma once
 
 #include <vector>
+#include <map>
+#include <unordered_set>
 
 #include "Eigen/StdVector"
 #include "Eigen/Dense"
@@ -41,8 +43,20 @@ public:
     void cleanUp(); // perform any cleaning up at the end
 
 private:
+    // ------- match computation
     float strokewidth = 0.5;
     float sigma = 1.5*(strokewidth+strokewidth)/2;
+    // ------- restricted matching
+    float d_max = 0.5f;
+    // base vertex index : {
+    //          other stroke index : {
+    //                          set of vertices on other stroke that matches with base vertex
+    unordered_map<int, unordered_map<int, unordered_set<int>>> validVertexVertexMatch;
+    // base vertex index : {
+    //          other vertex index
+    unordered_map<int, unordered_set<int>> leftRestrictedMatchingCandidates;
+    unordered_map<int, unordered_set<int>> rightRestrictedMatchingCandidates;
+
     vector<Vertex*> _vertices;
     vector<vector<int>> _lines;
     vector<Vector3i> _faces;
@@ -51,4 +65,9 @@ private:
     vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
     // ------- match computation
     float vertexVertexScore(Vertex* P, Vertex* Q, bool leftside);
+    // ------- restricted matching
+    void getRestrictedMatchingCandidates();
+    pair<vector<int>, vector<int>> splitStrokesIntoLeftRight(int baseStrokeIndex);
+    bool doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSameStroke, int strokeIndex);
+    int calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool leftside);
 };
