@@ -14,18 +14,19 @@ EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Matrix2f);
 EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Matrix3f);
 EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Matrix3i);
 
-typedef struct Vertex {
+typedef struct Vertex
+{
     Vector3f position;
-    bool isActive; // records whether the corresponding vertex has been deleted or not: if isActive is false then it has been deleted
+    bool isActive;    // records whether the corresponding vertex has been deleted or not: if isActive is false then it has been deleted
     Vector3f tangent; // tangent vector
-    Vector3f normal; // normal vector
+    Vector3f normal;  // normal vector
     // constructor with all fields
     Vertex(Vector3f _position, bool _isActive, Vector3f _tangent, Vector3f _normal)
-        : position(_position), isActive(_isActive), tangent(_tangent), normal(_normal) {};
+        : position(_position), isActive(_isActive), tangent(_tangent), normal(_normal){};
     // constructor with all fields except tangent
     Vertex(Vector3f _position, bool _isActive, Vector3f _normal)
-        : position(_position), isActive(_isActive), tangent(Vector3f(0,0,0)), normal(_normal) {};
-//    int index; // index of the vertex in _vertices
+        : position(_position), isActive(_isActive), tangent(Vector3f(0, 0, 0)), normal(_normal){};
+    //    int index; // index of the vertex in _vertices
 
 } Vertex;
 
@@ -50,7 +51,7 @@ public:
 private:
     // ------- match computation
     float strokewidth = 0.5;
-    float sigma = 1.5*(strokewidth+strokewidth)/2;
+    float sigma = 1.5 * (strokewidth + strokewidth) / 2;
     // ------- restricted matching
     float d_max = 0.5f;
     // base vertex index : {
@@ -62,7 +63,7 @@ private:
     unordered_map<int, unordered_set<int>> leftRestrictedMatchingCandidates;
     unordered_map<int, unordered_set<int>> rightRestrictedMatchingCandidates;
 
-    vector<Vertex*> _vertices;
+    vector<Vertex *> _vertices;
     vector<vector<int>> _lines;
     vector<Vector3i> _faces;
 
