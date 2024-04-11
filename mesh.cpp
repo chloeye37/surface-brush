@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <array>
 
 #include <QFileInfo>
 #include <QString>
@@ -234,6 +235,10 @@ void Mesh::cleanUp() {
     }
 }
 
+vector<vector<int>> Mesh::getLines() {
+    return _lines;
+}
+
 // -------- PUBLIC ENDS -------------------------------------------------------------------------------
 
 
@@ -293,7 +298,7 @@ float Mesh::vertexVertexScore(Vertex* P, Vertex* Q, bool leftside) {
     return finalscore;
 }
 
-
+// Pi_1 mean P_(i+1)
 float Mesh::persistenceScore(Vertex* Pi, Vertex* Qi, Vertex* Pi_1, Vertex* Qi_1) {
     Vector3f pi_1 = Pi_1->position;
     Vector3f qi_1 = Qi_1->position;
@@ -303,6 +308,82 @@ float Mesh::persistenceScore(Vertex* Pi, Vertex* Qi, Vertex* Pi_1, Vertex* Qi_1)
     float finalscore = exp(-pow(dp,2)/(2.f*pow(sigma, 2.f)));
     return finalscore;
 }
+
+// Intermediate M from step i-1 to i
+// pi_1 means p_(i-1)
+float Mesh::computeM(int pi, int qi, int pi_1, int qi_1, bool leftSide) {
+    float vv = vertexVertexScore(_vertices[pi_1], _vertices[qi_1], leftSide);
+    float pers = persistenceScore(_vertices[pi_1], _vertices[qi_1],  _vertices[pi], _vertices[qi]);
+    return vv * pers;
+}
+
+/**
+ * @brief perform one viterbi on one stroke S to find the sequence of q's that maximizes the objective function of M_l
+ * @param vector<Vertex*> S: stroke to be processed
+ * @param vector<vector<Vertex*>> candidates: a vector of candidates vector<C(pi)> for each vertex pi in S
+ * @return vector<Vertex*> Q: sequence of q's, each qi is the optimal match for each pi in S
+ */
+vector<int> Mesh::viterbi(vector<int> S, vector<vector<int>> candidates, bool leftSide) {
+    int k = 1; // time index
+    int K = S.size(); // number of steps = number of vertices in S
+    int M = 0; // max of number of candidates among all points pi
+    for (int i = 0; i < candidates.size(); i++) {
+        if (candidates[i].size() > M) {
+            M = candidates[i].size();
+        }
+    }
+    // construct a float[][] of size M*K
+    float scores[M][K];
+    // initialize the first column of dp to be all ones -- candidates for p0
+    for (int i = 0; i < candidates[0].size(); i++) {
+        scores[i][0] = 1.0;
+    }
+    // also need to store the current sequence of states at each q at time k -- an array of vectors, the array is of fixed size M
+    vector<int> prev_sequences[M];
+    vector<int> cur_sequences[M];
+    // initialize the sequences to contain the starting points -- candidates for p0
+    for (int i = 0; i < candidates[0].size(); i++) {
+        scores[i][0] = 1.0;
+    }
+    // begin iterating through each step
+    while (k < K) {
+        for (int cur = 0; cur < candidates[k].size(); cur++) {
+            // for each current q, select the prev that maximizes M_score so far
+            // for prev, its M_score is stored in scores[prev][k-1]
+            float cur_max = - 1e36;
+            for (int prev = 0; prev < candidates[k-1].size(); prev++) {
+                float stepM = computeM(S[k], candidates[k][cur], S[k-1], candidates[k-1][prev], leftSide);
+                if (stepM * scores[prev][k-1] > cur_max) {
+                    cur_max = stepM * scores[prev][k-1];
+                    vector<int> newvec = prev_sequences[prev];
+                    newvec.push_back(candidates[k][cur]);
+                    cur_sequences[cur] = newvec; // extend from prev_seqence by appending cur
+                }
+            }
+            // use cur_max as the score for cur
+            scores[cur][k] = cur_max;
+        }
+        // updaet prev_sequences to be cur_sequences: prev_sequences = cur_sequences
+        for (int i = 0; i < M; i++) {
+            prev_sequences[i] = cur_sequences[i];
+        }
+        k++;
+    }
+    // now select the q that has the maximum score and retrieve its sequence
+    // all final scores are in scores[][K-1]
+    int final_index = 0;
+    float max_score = 0;
+    for (int i = 0; i < M; i++) {
+        if (scores[i][K-1] > max_score) {
+            max_score = scores[i][K-1];
+            final_index = i;
+        }
+    }
+    return cur_sequences[final_index];
+}
+
+
+
 
 // -------- PRIVATE ENDS -------------------------------------------------------------------------------
 

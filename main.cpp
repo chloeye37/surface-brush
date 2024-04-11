@@ -61,6 +61,23 @@ int main(int argc, char *argv[])
     m.preprocessLines();
     std::cout << "Strips preprocessed." << std::endl;
 
+    // ---------- Test Viterbi ---------------------------
+    vector<int> S1 = m.getLines()[0];
+    vector<int> S2 = m.getLines()[1];
+    std::cout << "S2 size: " << S2.size() << std::endl;
+    std::cout << "S2 range: " << S2[0] << " - " << S2[S2.size()-1] << std::endl;
+    vector<vector<int>> candidates;
+    for (int i = 0; i < S1.size(); i++) {
+        candidates.push_back(S2);
+    }
+
+    vector<int> res = m.viterbi(S1, candidates, true);
+    std::cout << "res[0]: " << res[0] << std::endl;
+    std::cout << "res[1]: " << res[1] << std::endl;
+    std::cout << "res[2]: " << res[2] << std::endl;
+    std::cout << "res[19]: " << res[19] << std::endl;
+    // ---------- Test Viterbi Ends ------------------------
+
     // // Finish timing
     // auto t1 = std::chrono::high_resolution_clock::now();
     // auto duration = duration_cast<std::chrono::milliseconds>(t1 - t0).count();
