@@ -7,6 +7,8 @@
 #include "Eigen/StdVector"
 #include "Eigen/Dense"
 
+#include "util/settings.h"
+
 using namespace Eigen;
 using namespace std;
 
@@ -34,10 +36,11 @@ class Mesh
 {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+    Mesh();
 
-    void loadFromFile(const string &inObjFilePath, const string &inPlyFilePath);
-    void saveToFile(const string &outStrokeFilePath, const string &outMeshFilePath);
-    void debugSaveToFile(const string &outStrokeFilePath, const string &outMeshFilePath);
+    void loadFromFile();
+    void saveToFile();
+    void debugSaveToFile();
 
     void preprocessLines();
     void calculateTangents(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals);
@@ -49,11 +52,13 @@ public:
     bool isDebug = true;
 
 private:
+    // settings
+    Settings* settings;
+
     // ------- match computation
     float strokewidth = 0.5;
     float sigma = 1.5 * (strokewidth + strokewidth) / 2;
     // ------- restricted matching
-    float d_max = 0.5f;
     // base vertex index : {
     //          other stroke index : {
     //                          set of vertices on other stroke that matches with base vertex

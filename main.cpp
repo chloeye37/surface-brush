@@ -6,6 +6,7 @@
 #include <chrono>
 
 #include "mesh.h"
+#include "util/settings.h"
 
 
 std::vector<std::vector<int>> parse_to_polyline(std::vector<Eigen::Vector2i> connections){
@@ -44,15 +45,16 @@ int main(int argc, char *argv[])
 
     // Parse common inputs
     QSettings settings( args[0], QSettings::IniFormat );
-    QString inObjFile  = settings.value("IO/inObjFile").toString();
-    QString inPlyFile  = settings.value("IO/inPlyFile").toString();
-    QString outStrokeFile = settings.value("IO/outStrokeFile").toString();
-    QString outMeshFile = settings.value("IO/outMeshFile").toString();
-
+    Settings* appSettings = Settings::getInstance();
+    appSettings->inObjFile  = settings.value("IO/inObjFile").toString().toStdString();
+    appSettings->inPlyFile = settings.value("IO/inPlyFile").toString().toStdString();
+    appSettings->outStrokeFile = settings.value("IO/outStrokeFile").toString().toStdString();
+    appSettings->outMeshFile = settings.value("IO/outMeshFile").toString().toStdString();
+    appSettings->d_max = settings.value("IO/d_max").toFloat();
 
     // Load
     Mesh m;
-    m.loadFromFile(inObjFile.toStdString(), inPlyFile.toStdString());
+    m.loadFromFile();
 
     // // Start timing
     // auto t0 = std::chrono::high_resolution_clock::now();
@@ -69,7 +71,7 @@ int main(int argc, char *argv[])
     // std::cout << "Execution took " << duration << " milliseconds." << std::endl;
 
     // Save
-    m.saveToFile(outStrokeFile.toStdString(), outMeshFile.toStdString());
+    m.saveToFile();
 //    m.debugSaveToFile(outStrokeFile.toStdString(), outMeshFile.toStdString());
     std::cout << "Saved to file." << std::endl;
 

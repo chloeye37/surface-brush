@@ -15,17 +15,20 @@
 #include <fstream>
 
 // -------- PUBLIC STARTS -------------------------------------------------------------------------------
+Mesh::Mesh() {
+    this->settings = Settings::getInstance();
+}
 
-void Mesh::loadFromFile(const std::string &inObjFilePath, const std::string &inPlyFilePath)
+void Mesh::loadFromFile()
 {
     // load obj file
-    pair<vector<Vector3f>, vector<Vector2i>> verticesAndLineSegments = objLoader::loadFromFile(inObjFilePath);
+    pair<vector<Vector3f>, vector<Vector2i>> verticesAndLineSegments = objLoader::loadFromFile(this->settings->inObjFile);
     vector<Vector3f> vertices = verticesAndLineSegments.first;
     vector<Vector2i> lineSegments = verticesAndLineSegments.second;
     vector<vector<int>> lines = this->parseToPolyline(lineSegments);
 
     // load ply file
-    vector<Vector3f> normals = plyLoader::loadFromFile(inPlyFilePath);
+    vector<Vector3f> normals = plyLoader::loadFromFile(this->settings->inPlyFile);
 
     // populate the _vertices vector
     vector<Vertex *> m_vertices;
@@ -71,13 +74,13 @@ void Mesh::calculateTangents(const vector<Vector3f> &vertices, const vector<Vect
     }
 }
 
-void Mesh::saveToFile(const string &outStrokeFilePath, const string &outMeshFilePath)
+void Mesh::saveToFile()
 {
     ofstream outStrokeFile;
-    outStrokeFile.open(outStrokeFilePath);
+    outStrokeFile.open(this->settings->outStrokeFile);
 
     ofstream outMeshFile;
-    outMeshFile.open(outMeshFilePath);
+    outMeshFile.open(this->settings->outMeshFile);
 
     // Write vertices
     for (size_t i = 0; i < _vertices.size(); i++)
@@ -115,7 +118,7 @@ void Mesh::saveToFile(const string &outStrokeFilePath, const string &outMeshFile
     outMeshFile.close();
 }
 
-void Mesh::debugSaveToFile(const string &outStrokeFilePath, const string &outMeshFilePath)
+void Mesh::debugSaveToFile()
 {
     // take in only 1st vertex and its candidates (left or right or both or none)
     vector<Vertex *> verticesForVisualization;
@@ -161,7 +164,7 @@ void Mesh::debugSaveToFile(const string &outStrokeFilePath, const string &outMes
     //    }
 
     ofstream outStrokeFile;
-    outStrokeFile.open(outStrokeFilePath);
+    outStrokeFile.open(this->settings->outStrokeFile);
 
     // Write vertices
     for (size_t i = 0; i < verticesForVisualization.size(); i++)
@@ -398,17 +401,6 @@ float Mesh::persistenceScore(Vertex *Pi, Vertex *Qi, Vertex *Pi_1, Vertex *Qi_1)
     return finalscore;
 }
 
-
-float Mesh::persistenceScore(Vertex* Pi, Vertex* Qi, Vertex* Pi_1, Vertex* Qi_1) {
-    Vector3f pi_1 = Pi_1->position;
-    Vector3f qi_1 = Qi_1->position;
-    Vector3f pi = Pi->position;
-    Vector3f qi = Qi->position;
-    float dp = ((pi_1 - pi) - (qi_1 - qi)).norm() + ((pi_1 - qi) - (qi_1 - pi)).norm() + ((pi_1 - qi_1) - (pi - qi)).norm();
-    float finalscore = exp(-pow(dp,2)/(2.f*pow(sigma, 2.f)));
-    return finalscore;
-}
-
 // -------- PRIVATE ENDS -------------------------------------------------------------------------------
 void Mesh::getRestrictedMatchingCandidates()
 {
@@ -594,7 +586,7 @@ bool Mesh::doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSa
 
     // condition 1
     float length = pq.norm();
-    if (length > this->d_max)
+    if (length > this->settings->d_max)
     {
         return false;
     }

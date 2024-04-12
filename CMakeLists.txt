@@ -29,6 +29,8 @@ add_executable(${PROJECT_NAME}
     util/ply_loader.cpp
     util/obj_loader.h
     util/obj_loader.cpp
+    util/settings.h
+    util/settings.cpp
 )
 
 # Specifies libraries to be linked (Qt components, glew, etc)
