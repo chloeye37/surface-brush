@@ -9,6 +9,7 @@ glew/
 # MacOS & clang files
 **/.DS_Store
 .qtc_clangd/
+*.icloud
 
 # Windows & MinGW files
 *.Debug
