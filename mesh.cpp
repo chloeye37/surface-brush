@@ -115,7 +115,6 @@ void Mesh::saveToFile(const string &outStrokeFilePath, const string &outMeshFile
     outMeshFile.close();
 }
 
-<<<<<<< HEAD
 void Mesh::debugSaveToFile(const string &outStrokeFilePath, const string &outMeshFilePath)
 {
     // take in only 1st vertex and its candidates (left or right or both or none)
@@ -184,8 +183,6 @@ void Mesh::debugSaveToFile(const string &outStrokeFilePath, const string &outMes
     outStrokeFile.close();
 }
 
-=======
->>>>>>> 9dc5b4e (have not tested)
 // Preprocess the lines: check if the strokes have an abrupt direction change (angle of 45◦ or less between consecutive tangents)
 // within 15% of overall stroke length from either end and remove the offending end-sections.
 void Mesh::preprocessLines()
@@ -406,7 +403,7 @@ void Mesh::getRestrictedMatchingCandidates()
 {
     assert(!this->_lines.empty());
 
-    for (int i = 0; i < this->_lines.size(); i++)
+    for (int i = 0; i < i < this->_lines.size(); i++)
     {
         vector<int> stroke = this->_lines[i];
         // split rest of strokes into left & right strokes
