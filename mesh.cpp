@@ -398,6 +398,17 @@ float Mesh::persistenceScore(Vertex *Pi, Vertex *Qi, Vertex *Pi_1, Vertex *Qi_1)
     return finalscore;
 }
 
+
+float Mesh::persistenceScore(Vertex* Pi, Vertex* Qi, Vertex* Pi_1, Vertex* Qi_1) {
+    Vector3f pi_1 = Pi_1->position;
+    Vector3f qi_1 = Qi_1->position;
+    Vector3f pi = Pi->position;
+    Vector3f qi = Qi->position;
+    float dp = ((pi_1 - pi) - (qi_1 - qi)).norm() + ((pi_1 - qi) - (qi_1 - pi)).norm() + ((pi_1 - qi_1) - (pi - qi)).norm();
+    float finalscore = exp(-pow(dp,2)/(2.f*pow(sigma, 2.f)));
+    return finalscore;
+}
+
 // -------- PRIVATE ENDS -------------------------------------------------------------------------------
 void Mesh::getRestrictedMatchingCandidates()
 {
