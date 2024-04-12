@@ -28,8 +28,6 @@ typedef struct Vertex
     // constructor with all fields except tangent
     Vertex(Vector3f _position, bool _isActive, Vector3f _normal)
         : position(_position), isActive(_isActive), tangent(Vector3f(0, 0, 0)), normal(_normal){};
-    //    int index; // index of the vertex in _vertices
-
 } Vertex;
 
 class Mesh
@@ -43,13 +41,9 @@ public:
     void debugSaveToFile();
 
     void preprocessLines();
-    void calculateTangents(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals);
+    void getRestrictedMatchingCandidates();
 
     void cleanUp(); // perform any cleaning up at the end
-
-    void getRestrictedMatchingCandidates(); // temporarily public
-
-    bool isDebug = true;
 
 private:
     // settings
@@ -74,11 +68,12 @@ private:
 
     // helpers
     vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
+    // ------- preprocessing
+    void calculateTangents(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals);
     // ------- match computation
     float vertexVertexScore(Vertex* P, Vertex* Q, bool leftside);
     float persistenceScore(Vertex* Pi, Vertex* Qi, Vertex* Pi_1, Vertex* Qi_1); // Qi is the match of Pi, Qi_1 is the match of Pi_1; Pi and Pi_1 are consecutive vertices
     // ------- restricted matching
-//    void getRestrictedMatchingCandidates();
     pair<vector<int>, vector<int>> splitStrokesIntoLeftRight(int baseStrokeIndex);
     bool doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSameStroke, int strokeIndex);
     int calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool leftside);

@@ -28,6 +28,7 @@ public:
     std::string outStrokeFile;
     std::string outMeshFile;
     float d_max = 0.5f;
+    bool isDebug = false;
 };
 
 #endif // UTILS_H

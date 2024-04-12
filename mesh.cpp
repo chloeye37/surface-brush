@@ -47,33 +47,6 @@ void Mesh::loadFromFile()
     calculateTangents(vertices, normals);
 }
 
-void Mesh::calculateTangents(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals)
-{
-    // loop through all lines
-    for (auto &line : _lines)
-    {
-        int n = line.size();
-        // loop through all vertices on the line
-        Vector3f first_tangent = vertices[line[1]] - vertices[line[0]]; // tangent of the first vertex is just the line segment direction
-        _vertices[line[0]]->tangent = first_tangent;
-
-        for (int i = 1; i < n - 1; i++)
-        {
-            Vector3f curA = vertices[line[i - 1]];
-            Vector3f curB = vertices[line[i]];
-            Vector3f curC = vertices[line[i + 1]];
-            Vector3f AC = curC - curA;
-            Vector3f B_normal = vertexNormals[line[i]];
-            Vector3f AC_parallel = AC.dot(B_normal) / (B_normal.norm() * B_normal.norm()) * B_normal; // AC projected onto the direction of normal
-
-            Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
-            _vertices[line[i]]->tangent = cur_tangent;
-        }
-        Vector3f last_tangent = vertices[line[n - 1]] - vertices[line[n - 2]]; // tangent of the last vertex is just the line segment direction
-        _vertices[line[n - 1]]->tangent = last_tangent;
-    }
-}
-
 void Mesh::saveToFile()
 {
     ofstream outStrokeFile;
@@ -318,90 +291,6 @@ void Mesh::preprocessLines()
     this->_lines = final_lines;
 }
 
-void Mesh::cleanUp()
-{
-    for (int i = 0; i < this->_vertices.size(); i++)
-    {
-        delete this->_vertices[i];
-    }
-}
-
-// -------- PUBLIC ENDS -------------------------------------------------------------------------------
-
-// -------- PRIVATE STARTS -------------------------------------------------------------------------------
-
-vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections)
-{
-    std::vector<std::vector<int>> polylines = std::vector<std::vector<int>>();
-    int index = 0;
-    while (index < connections.size())
-    {
-        vector<int> currentpoly = std::vector<int>();
-        currentpoly.push_back(connections[index][0]);
-        currentpoly.push_back(connections[index][1]);
-        index = index + 1;
-        while (connections[index][0] == currentpoly[currentpoly.size() - 1])
-        {
-            currentpoly.push_back(connections[index][1]);
-            index = index + 1;
-        }
-        polylines.push_back(currentpoly);
-    }
-    return polylines;
-}
-
-float Mesh::vertexVertexScore(Vertex *P, Vertex *Q, bool leftside)
-{
-    Vector3f p = P->position;
-    Vector3f q = Q->position;
-    Vector3f tp = P->tangent;
-    Vector3f tq = Q->tangent;
-    Vector3f pb = (tp.cross(P->normal)).normalized();
-    Vector3f qb = (tq.cross(Q->normal)).normalized();
-    float da = (p - q).norm();
-    float dt = 0.5 * (abs((p - q).dot(tp)) + abs((p - q).dot(tq)));
-    // This is specifically for a left match.
-    Vector3f pc;
-    if (leftside)
-    {
-        pc = p - strokewidth * pb;
-    }
-    else
-    {
-        pc = p + strokewidth * pb;
-    }
-
-    Vector3f ql = q - strokewidth * qb;
-    Vector3f qr = q + strokewidth * qb;
-
-    Vector3f qc;
-    if ((ql - pc).norm() < (qr - pc).norm())
-    {
-        qc = ql;
-    }
-    else
-    {
-        qc = qr;
-    }
-    Vector3f mpqprime = 0.5 * (pc + qc);
-    Vector3f mpq = 0.5 * (p + q);
-    float dln = (mpq - mpqprime).norm();
-    float finalscore = exp(-pow(da + dt + dln, 2) / (2.f * pow(sigma, 2.f)));
-    return finalscore;
-}
-
-float Mesh::persistenceScore(Vertex *Pi, Vertex *Qi, Vertex *Pi_1, Vertex *Qi_1)
-{
-    Vector3f pi_1 = Pi_1->position;
-    Vector3f qi_1 = Qi_1->position;
-    Vector3f pi = Pi->position;
-    Vector3f qi = Qi->position;
-    float dp = ((pi_1 - pi) - (qi_1 - qi)).norm() + ((pi_1 - qi) - (qi_1 - pi)).norm() + ((pi_1 - qi_1) - (pi - qi)).norm();
-    float finalscore = exp(-pow(dp, 2) / (2.f * pow(sigma, 2.f)));
-    return finalscore;
-}
-
-// -------- PRIVATE ENDS -------------------------------------------------------------------------------
 void Mesh::getRestrictedMatchingCandidates()
 {
     assert(!this->_lines.empty());
@@ -511,6 +400,118 @@ void Mesh::getRestrictedMatchingCandidates()
             }
         }
     }
+}
+
+void Mesh::cleanUp()
+{
+    for (int i = 0; i < this->_vertices.size(); i++)
+    {
+        delete this->_vertices[i];
+    }
+}
+
+// -------- PUBLIC ENDS -------------------------------------------------------------------------------
+
+
+
+// -------- PRIVATE STARTS -------------------------------------------------------------------------------
+
+vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections)
+{
+    std::vector<std::vector<int>> polylines = std::vector<std::vector<int>>();
+    int index = 0;
+    while (index < connections.size())
+    {
+        vector<int> currentpoly = std::vector<int>();
+        currentpoly.push_back(connections[index][0]);
+        currentpoly.push_back(connections[index][1]);
+        index = index + 1;
+        while (connections[index][0] == currentpoly[currentpoly.size() - 1])
+        {
+            currentpoly.push_back(connections[index][1]);
+            index = index + 1;
+        }
+        polylines.push_back(currentpoly);
+    }
+    return polylines;
+}
+
+void Mesh::calculateTangents(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals)
+{
+    // loop through all lines
+    for (auto &line : _lines)
+    {
+        int n = line.size();
+        // loop through all vertices on the line
+        Vector3f first_tangent = vertices[line[1]] - vertices[line[0]]; // tangent of the first vertex is just the line segment direction
+        _vertices[line[0]]->tangent = first_tangent;
+
+        for (int i = 1; i < n - 1; i++)
+        {
+            Vector3f curA = vertices[line[i - 1]];
+            Vector3f curB = vertices[line[i]];
+            Vector3f curC = vertices[line[i + 1]];
+            Vector3f AC = curC - curA;
+            Vector3f B_normal = vertexNormals[line[i]];
+            Vector3f AC_parallel = AC.dot(B_normal) / (B_normal.norm() * B_normal.norm()) * B_normal; // AC projected onto the direction of normal
+
+            Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
+            _vertices[line[i]]->tangent = cur_tangent;
+        }
+        Vector3f last_tangent = vertices[line[n - 1]] - vertices[line[n - 2]]; // tangent of the last vertex is just the line segment direction
+        _vertices[line[n - 1]]->tangent = last_tangent;
+    }
+}
+
+float Mesh::vertexVertexScore(Vertex *P, Vertex *Q, bool leftside)
+{
+    Vector3f p = P->position;
+    Vector3f q = Q->position;
+    Vector3f tp = P->tangent;
+    Vector3f tq = Q->tangent;
+    Vector3f pb = (tp.cross(P->normal)).normalized();
+    Vector3f qb = (tq.cross(Q->normal)).normalized();
+    float da = (p - q).norm();
+    float dt = 0.5 * (abs((p - q).dot(tp)) + abs((p - q).dot(tq)));
+    // This is specifically for a left match.
+    Vector3f pc;
+    if (leftside)
+    {
+        pc = p - strokewidth * pb;
+    }
+    else
+    {
+        pc = p + strokewidth * pb;
+    }
+
+    Vector3f ql = q - strokewidth * qb;
+    Vector3f qr = q + strokewidth * qb;
+
+    Vector3f qc;
+    if ((ql - pc).norm() < (qr - pc).norm())
+    {
+        qc = ql;
+    }
+    else
+    {
+        qc = qr;
+    }
+    Vector3f mpqprime = 0.5 * (pc + qc);
+    Vector3f mpq = 0.5 * (p + q);
+    float dln = (mpq - mpqprime).norm();
+    float finalscore = exp(-pow(da + dt + dln, 2) / (2.f * pow(sigma, 2.f)));
+    return finalscore;
+}
+
+float Mesh::persistenceScore(Vertex *Pi, Vertex *Qi, Vertex *Pi_1, Vertex *Qi_1)
+{
+    Vector3f pi_1 = Pi_1->position;
+    Vector3f qi_1 = Qi_1->position;
+    Vector3f pi = Pi->position;
+    Vector3f qi = Qi->position;
+    float dp = ((pi_1 - pi) - (qi_1 - qi)).norm() + ((pi_1 - qi) - (qi_1 - pi)).norm() + ((pi_1 - qi_1) - (pi - qi)).norm();
+    float finalscore = exp(-pow(dp, 2) / (2.f * pow(sigma, 2.f)));
+    return finalscore;
 }
 
 /**

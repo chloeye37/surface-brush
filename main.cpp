@@ -46,11 +46,13 @@ int main(int argc, char *argv[])
     // Parse common inputs
     QSettings settings( args[0], QSettings::IniFormat );
     Settings* appSettings = Settings::getInstance();
+    appSettings->setIniFilePath(args[0]);
     appSettings->inObjFile  = settings.value("IO/inObjFile").toString().toStdString();
     appSettings->inPlyFile = settings.value("IO/inPlyFile").toString().toStdString();
     appSettings->outStrokeFile = settings.value("IO/outStrokeFile").toString().toStdString();
     appSettings->outMeshFile = settings.value("IO/outMeshFile").toString().toStdString();
-    appSettings->d_max = settings.value("IO/d_max").toFloat();
+    appSettings->d_max = settings.value("Params/d_max").toFloat();
+    appSettings->isDebug = settings.value("Debug/isDebug").toBool();
 
     // Load
     Mesh m;
