@@ -36,6 +36,7 @@ public:
 
     void loadFromFile(const string &inObjFilePath, const string &inPlyFilePath);
     void saveToFile(const string &outStrokeFilePath, const string &outMeshFilePath);
+    void debugSaveToFile(const string &outStrokeFilePath, const string &outMeshFilePath);
 
     void preprocessLines();
     void calculateTangents(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals);
@@ -43,6 +44,10 @@ public:
     void cleanUp(); // perform any cleaning up at the end
     vector<vector<int>> getLines();
     vector<int> viterbi(vector<int> S, vector<vector<int>> candidates, bool leftSide); // for testing purposes, moved into public
+
+    void getRestrictedMatchingCandidates(); // temporarily public
+
+    bool isDebug = true;
 
 private:
     // ------- match computation
@@ -72,7 +77,7 @@ private:
 
 
     // ------- restricted matching
-    void getRestrictedMatchingCandidates();
+//    void getRestrictedMatchingCandidates();
     pair<vector<int>, vector<int>> splitStrokesIntoLeftRight(int baseStrokeIndex);
     bool doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSameStroke, int strokeIndex);
     int calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool leftside);

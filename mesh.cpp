@@ -116,6 +116,68 @@ void Mesh::saveToFile(const string &outStrokeFilePath, const string &outMeshFile
     outMeshFile.close();
 }
 
+void Mesh::debugSaveToFile(const string &outStrokeFilePath, const string &outMeshFilePath) {
+    // take in only 1st vertex and its candidates (left or right or both or none)
+    vector<Vertex*> verticesForVisualization;
+    int theOnlyBaseVertexWanted = 50;
+    verticesForVisualization.push_back(this->_vertices[theOnlyBaseVertexWanted]);
+    for (const auto & [ baseVertexIndex, otherVertexIndices ] : this->leftRestrictedMatchingCandidates) {
+//        if (theOnlyBaseVertexWanted == -1) {
+//            theOnlyBaseVertexWanted = baseVertexIndex;
+//            verticesForVisualization.push_back(this->_vertices[baseVertexIndex]);
+//        }
+        if (baseVertexIndex != theOnlyBaseVertexWanted) continue;
+        for (const auto& otherVertexIndex : otherVertexIndices) {
+            verticesForVisualization.push_back(this->_vertices[otherVertexIndex]);
+        }
+        break;
+    }
+    for (const auto & [ baseVertexIndex, otherVertexIndices ] : this->rightRestrictedMatchingCandidates) {
+//        if (theOnlyBaseVertexWanted == -1) {
+//            theOnlyBaseVertexWanted = baseVertexIndex;
+//            verticesForVisualization.push_back(this->_vertices[baseVertexIndex]);
+//        }
+        if (baseVertexIndex != theOnlyBaseVertexWanted) continue;
+        for (const auto& otherVertexIndex : otherVertexIndices) {
+            verticesForVisualization.push_back(this->_vertices[otherVertexIndex]);
+        }
+        break;
+    }
+
+    // strokes to visualize
+//    vector<vector<int>> strokesForVisualization;
+//    strokesForVisualization.push_back(this->_lines[1]);
+//    if (this->leftDominantStroke != -1) {
+//        strokesForVisualization.push_back(this->_lines[this->leftDominantStroke]);
+//    }
+//    if (this->rightDominantStroke != -1) {
+//        strokesForVisualization.push_back(this->_lines[this->rightDominantStroke]);
+//    }
+
+    ofstream outStrokeFile;
+    outStrokeFile.open(outStrokeFilePath);
+
+    // Write vertices
+    for (size_t i = 0; i < verticesForVisualization.size(); i++)
+    {
+        Vertex *v = verticesForVisualization[i];
+        outStrokeFile << "v " << v->position[0] << " " << v->position[1] << " " << v->position[2] << endl;
+    }
+
+    // Write strokes
+//    for (size_t i = 0; i < strokesForVisualization.size(); i++)
+//    {
+//        const vector<int> &l = strokesForVisualization[i];
+//        for (size_t j = 0; j < l.size() - 1; j++)
+//        {
+//            outStrokeFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
+//        }
+//    }
+
+    outStrokeFile.close();
+
+}
+
 // Preprocess the lines: check if the strokes have an abrupt direction change (angle of 45◦ or less between consecutive tangents)
 // within 15% of overall stroke length from either end and remove the offending end-sections.
 void Mesh::preprocessLines()
@@ -416,7 +478,7 @@ void Mesh::getRestrictedMatchingCandidates()
 {
     assert(!this->_lines.empty());
 
-    for (int i = 0; i < this->_lines.size(); i++)
+    for (int i = 0; i < i < this->_lines.size(); i++)
     {
         vector<int> stroke = this->_lines[i];
         // split rest of strokes into left & right strokes
@@ -431,6 +493,7 @@ void Mesh::getRestrictedMatchingCandidates()
             int matches = this->calcNumberOfMatches(i, leftStrokeIndex, true);
             if (matches > highestLeftMatches) {
                 leftDominantStrokeIndex = leftStrokeIndex;
+                highestLeftMatches = matches;
             }
         }
         // if leftDominantStrokeIndex == -1, then no left dominant stroke!
@@ -442,16 +505,24 @@ void Mesh::getRestrictedMatchingCandidates()
             int matches = this->calcNumberOfMatches(i, rightStrokeIndex, false);
             if (matches > highestRightMatches) {
                 rightDominantStrokeIndex = rightStrokeIndex;
+                highestRightMatches = matches;
             }
         }
         // if rightDominantStrokeIndex == -1, then no right dominant stroke!
 
         // get restricted matching candidates
-        for (int vertexIndex = 0; vertexIndex < stroke.size(); vertexIndex++) {
+        for (int strokeVertexIndex = 0; strokeVertexIndex < stroke.size(); strokeVertexIndex++) {
+            int vertexIndex = stroke[strokeVertexIndex]; // index of vertex in vector of vertices
+            if (!this->validVertexVertexMatch.contains(vertexIndex)) {
+                this->validVertexVertexMatch[vertexIndex] = unordered_map<int, unordered_set<int>>();
+            }
             unordered_map<int, unordered_set<int>> dominantStrokeMaps = this->validVertexVertexMatch.at(vertexIndex);
 
             unordered_set<int> vertexLeftRestrictedMatchingCandidates;
             if (leftDominantStrokeIndex != -1) {
+                if (!dominantStrokeMaps.contains(leftDominantStrokeIndex)) {
+                    dominantStrokeMaps[leftDominantStrokeIndex] = unordered_set<int>();
+                }
                 unordered_set<int> leftDominantStrokeMatches = dominantStrokeMaps.at(leftDominantStrokeIndex);
                 vertexLeftRestrictedMatchingCandidates.merge(leftDominantStrokeMatches);
             }
@@ -459,6 +530,9 @@ void Mesh::getRestrictedMatchingCandidates()
 
             unordered_set<int> vertexRightRestrictedMatchingCandidates;
             if (rightDominantStrokeIndex != -1) {
+                if (!dominantStrokeMaps.contains(rightDominantStrokeIndex)) {
+                    dominantStrokeMaps[rightDominantStrokeIndex] = unordered_set<int>();
+                }
                 unordered_set<int> rightDominantStrokeMatches = dominantStrokeMaps.at(rightDominantStrokeIndex);
                 vertexRightRestrictedMatchingCandidates.merge(rightDominantStrokeMatches);
             }
@@ -466,16 +540,25 @@ void Mesh::getRestrictedMatchingCandidates()
         }
 
         // also consider vertices in the same stroke
-        for (int vertexIndex = 0; vertexIndex < stroke.size(); vertexIndex++) {
-            for (int vertexIndex2 = 0; vertexIndex2 < stroke.size(); vertexIndex2++) {
+        for (int strokeVertexIndex = 0; strokeVertexIndex < stroke.size(); strokeVertexIndex++) {
+            int vertexIndex = stroke[strokeVertexIndex];
+            for (int strokeVertexIndex2 = 0; strokeVertexIndex2 < stroke.size(); strokeVertexIndex2++) {
+                int vertexIndex2 = stroke[strokeVertexIndex2];
+
                 if (vertexIndex == vertexIndex2) continue;
 
                 if (this->doTwoVerticesMatch(vertexIndex, vertexIndex2, true, true, i)) {
+                    if (!this->leftRestrictedMatchingCandidates.contains(vertexIndex)) {
+                        this->leftRestrictedMatchingCandidates[vertexIndex] = unordered_set<int>();
+                    }
                     unordered_set<int> leftMatches = this->leftRestrictedMatchingCandidates.at(vertexIndex);
                     leftMatches.insert(vertexIndex2);
                     this->leftRestrictedMatchingCandidates[vertexIndex] = leftMatches;
 
                 } else if (this->doTwoVerticesMatch(vertexIndex, vertexIndex2, false, true, i)) {
+                    if (!this->rightRestrictedMatchingCandidates.contains(vertexIndex)) {
+                        this->rightRestrictedMatchingCandidates[vertexIndex] = unordered_set<int>();
+                    }
                     unordered_set<int> rightMatches = this->rightRestrictedMatchingCandidates.at(vertexIndex);
                     rightMatches.insert(vertexIndex2);
                     this->rightRestrictedMatchingCandidates[vertexIndex] = rightMatches;
@@ -547,14 +630,16 @@ bool Mesh::doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSa
     Vertex* p = this->_vertices[pIndex];
     Vertex* q = this->_vertices[qIndex];
     Vector3f pq = q->position - p->position;
-    Vector3f pBinormal = p->tangent.cross(p->normal);
+    Vector3f pBinormal = p->tangent.cross(p->normal).normalized();
 
     // condition 1
-    if (pq.norm() > this->d_max) {
+    float length = pq.norm();
+    if (length > this->d_max) {
         return false;
     }
 
     // condition 2
+    pq.normalize();
     float angle;
     if (leftside) {
         angle = acos(pq.dot(-pBinormal));
@@ -599,8 +684,11 @@ int Mesh::calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool le
             if (baseOthermatched) {
                 isEverMatched = true;
                 // this is not 2-way, because we will do the other way later when this func is called again
+                if (!validVertexVertexMatch.contains(baseVertex)) {
+                    validVertexVertexMatch[baseVertex] = unordered_map<int, unordered_set<int>>();
+                }
                 if (!validVertexVertexMatch.at(baseVertex).contains(otherStrokeIndex)) {
-                    validVertexVertexMatch.at(baseVertex) = unordered_map<int, unordered_set<int>>();
+                    validVertexVertexMatch[baseVertex][otherStrokeIndex] = unordered_set<int>();
                 }
                 unordered_set<int> matches = validVertexVertexMatch.at(baseVertex).at(otherStrokeIndex);
                 matches.insert(otherVertex);
