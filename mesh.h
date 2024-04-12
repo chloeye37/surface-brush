@@ -36,11 +36,16 @@ public:
 
     void loadFromFile(const string &inObjFilePath, const string &inPlyFilePath);
     void saveToFile(const string &outStrokeFilePath, const string &outMeshFilePath);
+    void debugSaveToFile(const string &outStrokeFilePath, const string &outMeshFilePath);
 
     void preprocessLines();
     void calculateTangents(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals);
 
     void cleanUp(); // perform any cleaning up at the end
+
+    void getRestrictedMatchingCandidates(); // temporarily public
+
+    bool isDebug = true;
 
 private:
     // ------- match computation
@@ -66,7 +71,7 @@ private:
     // ------- match computation
     float vertexVertexScore(Vertex* P, Vertex* Q, bool leftside);
     // ------- restricted matching
-    void getRestrictedMatchingCandidates();
+//    void getRestrictedMatchingCandidates();
     pair<vector<int>, vector<int>> splitStrokesIntoLeftRight(int baseStrokeIndex);
     bool doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSameStroke, int strokeIndex);
     int calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool leftside);

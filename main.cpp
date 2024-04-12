@@ -60,6 +60,8 @@ int main(int argc, char *argv[])
     // TODO: our project code goes here
     m.preprocessLines();
     std::cout << "Strips preprocessed." << std::endl;
+    m.getRestrictedMatchingCandidates();
+    std::cout << "Got restricted matching candidates" << std::endl;
 
     // // Finish timing
     // auto t1 = std::chrono::high_resolution_clock::now();
@@ -67,7 +69,8 @@ int main(int argc, char *argv[])
     // std::cout << "Execution took " << duration << " milliseconds." << std::endl;
 
     // Save
-    m.saveToFile(outStrokeFile.toStdString(), outMeshFile.toStdString());
+//    m.saveToFile(outStrokeFile.toStdString(), outMeshFile.toStdString());
+    m.debugSaveToFile(outStrokeFile.toStdString(), outMeshFile.toStdString());
     std::cout << "Saved to file." << std::endl;
 
     // Clean up
