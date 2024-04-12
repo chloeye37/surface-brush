@@ -87,8 +87,8 @@ int main(int argc, char *argv[])
     // std::cout << "Execution took " << duration << " milliseconds." << std::endl;
 
     // Save
-//    m.saveToFile(outStrokeFile.toStdString(), outMeshFile.toStdString());
-    m.debugSaveToFile(outStrokeFile.toStdString(), outMeshFile.toStdString());
+    m.saveToFile(outStrokeFile.toStdString(), outMeshFile.toStdString());
+//    m.debugSaveToFile(outStrokeFile.toStdString(), outMeshFile.toStdString());
     std::cout << "Saved to file." << std::endl;
 
     // Clean up
