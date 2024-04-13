@@ -47,6 +47,7 @@ public:
     vector<int> viterbi(vector<int> S, vector<vector<int>> candidates, bool leftSide); // for testing purposes, moved into public
 
     void getRestrictedMatchingCandidates(); // temporarily public
+    void getMatches();
 
     bool isDebug = true;
 
@@ -55,7 +56,7 @@ private:
     float strokewidth = 0.5;
     float sigma = 1.5 * (strokewidth + strokewidth) / 2;
     // ------- restricted matching
-    float d_max = 0.5f;
+    float d_max = 0.7f;
     // base vertex index : {
     //          other stroke index : {
     //                          set of vertices on other stroke that matches with base vertex
@@ -64,6 +65,9 @@ private:
     //          other vertex index
     unordered_map<int, unordered_set<int>> leftRestrictedMatchingCandidates;
     unordered_map<int, unordered_set<int>> rightRestrictedMatchingCandidates;
+
+    unordered_map<int, int> leftMatch; // if the value is -1 then it doesn't have a match
+    unordered_map<int, int> rightMatch;
 
     vector<Vertex *> _vertices;
     vector<vector<int>> _lines;
@@ -75,6 +79,7 @@ private:
     float vertexVertexScore(Vertex* P, Vertex* Q, bool leftside);
     float persistenceScore(Vertex* Pi, Vertex* Qi, Vertex* Pi_1, Vertex* Qi_1); // Qi is the match of Pi, Qi_1 is the match of Pi_1; Pi and Pi_1 are consecutive vertices
     float computeM(int pi, int qi, int pi_1, int qi_1, bool leftSide);
+
 
 
     // ------- restricted matching

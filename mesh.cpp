@@ -426,6 +426,7 @@ vector<int> Mesh::viterbi(vector<int> S, vector<vector<int>> candidates, bool le
             M = candidates[i].size();
         }
     }
+    // if (M == 0) return {}; // if S does not have any potential matches on this side
     // construct a float[][] of size M*K
     float scores[M][K];
     // initialize the first column of dp to be all ones -- candidates for p0
@@ -433,34 +434,58 @@ vector<int> Mesh::viterbi(vector<int> S, vector<vector<int>> candidates, bool le
         scores[i][0] = 1.0;
     }
     // also need to store the current sequence of states at each q at time k -- an array of vectors, the array is of fixed size M
-    vector<int> prev_sequences[M];
-    vector<int> cur_sequences[M];
+    vector<vector<int>> prev_sequences;
+    vector<vector<int>> cur_sequences;
     // initialize the sequences to contain the starting points -- candidates for p0
     for (int i = 0; i < candidates[0].size(); i++) {
-        scores[i][0] = 1.0;
+        prev_sequences.push_back({candidates[0][i]});
+    }
+    if (candidates[0].size() == 0) { // first node does not have candidate matches
+        prev_sequences.push_back({-1});
     }
     // begin iterating through each step
+    int prev_k = 0; // the previous step with valid states (candidates nonempty)
     while (k < K) {
+        if (candidates[k].size() == 0) { // if the current node does not have candidate matches
+            // add -1 to each prev_sequence to indicate that it does not have a matching vertex
+            // then continue to next k without setting prev_k -- prev_k should be the last valid k
+            if (prev_sequences.empty()) {
+                prev_sequences.push_back({-1});
+            } else {
+                for (auto & seq : prev_sequences) {
+                    seq.push_back(-1);
+                }
+            }
+
+            k++;
+            continue;
+        }
+        cur_sequences = {};
         for (int cur = 0; cur < candidates[k].size(); cur++) {
             // for each current q, select the prev that maximizes M_score so far
             // for prev, its M_score is stored in scores[prev][k-1]
             float cur_max = - 1e36;
-            for (int prev = 0; prev < candidates[k-1].size(); prev++) {
-                float stepM = computeM(S[k], candidates[k][cur], S[k-1], candidates[k-1][prev], leftSide);
-                if (stepM * scores[prev][k-1] > cur_max) {
-                    cur_max = stepM * scores[prev][k-1];
-                    vector<int> newvec = prev_sequences[prev];
-                    newvec.push_back(candidates[k][cur]);
-                    cur_sequences[cur] = newvec; // extend from prev_seqence by appending cur
+            int max_prev = 0;
+            for (int prev = 0; prev < candidates[prev_k].size(); prev++) {
+                float stepM = computeM(S[k], candidates[k][cur], S[prev_k], candidates[prev_k][prev], leftSide);
+
+                if (stepM * scores[prev][prev_k] > cur_max) {
+                    cur_max = stepM * scores[prev][prev_k];
+                    max_prev = prev;
                 }
             }
+            vector<int> newvec = prev_sequences[max_prev];
+            newvec.push_back(candidates[k][cur]);
+            cur_sequences.push_back(newvec); // extend from prev_seqence by appending cur to the mas prev sequence
             // use cur_max as the score for cur
             scores[cur][k] = cur_max;
         }
         // updaet prev_sequences to be cur_sequences: prev_sequences = cur_sequences
-        for (int i = 0; i < M; i++) {
-            prev_sequences[i] = cur_sequences[i];
+        prev_sequences = {};
+        for (int i = 0; i < cur_sequences.size(); i++) {
+            prev_sequences.push_back(cur_sequences[i]);
         }
+        prev_k = k;
         k++;
     }
     // now select the q that has the maximum score and retrieve its sequence
@@ -473,13 +498,47 @@ vector<int> Mesh::viterbi(vector<int> S, vector<vector<int>> candidates, bool le
             final_index = i;
         }
     }
-    return cur_sequences[final_index];
+    return prev_sequences[final_index];
+}
+
+// populate the unordered_map<int, int> leftMatch and rightMatch
+void Mesh::getMatches() {
+    // process each strip
+    for (vector<int> S : _lines) {
+        // convert the unordered_map<int, unordered_set<int>> leftRestrictedMatchingCandidates into two vector<vector<int>> candidates for S
+        vector<vector<int>> left_candidates;
+        vector<vector<int>> right_candidates;
+        for (int point : S) {
+            vector<int> point_left_candidates = {};
+            if (leftRestrictedMatchingCandidates.contains(point)) { // if it has some potential left matches
+                point_left_candidates.insert(point_left_candidates.end(), leftRestrictedMatchingCandidates.at(point).begin(), leftRestrictedMatchingCandidates.at(point).end());
+            }
+            left_candidates.push_back(point_left_candidates);
+
+            vector<int> point_right_candidates = {};
+            if (rightRestrictedMatchingCandidates.contains(point)) { // if it has some potential right matches
+                point_right_candidates.insert(point_right_candidates.end(), rightRestrictedMatchingCandidates.at(point).begin(), rightRestrictedMatchingCandidates.at(point).end());
+            }
+            right_candidates.push_back(point_right_candidates);
+        }
+        std::cout << "here" << std::endl;
+
+        // starting finding matches for S
+        vector<int> left_matches = viterbi(S, left_candidates, true);
+        vector<int> right_matches = viterbi(S, right_candidates, false);
+
+        // populate unordered_map<int, int> leftMatch and rightMatch
+        for (int i = 0; i < S.size(); i++) {
+            leftMatch.insert({S[i], left_matches[i]});
+            rightMatch.insert({S[i], right_matches[i]});
+        }
+    }
 }
 
 
 
 
-// -------- PRIVATE ENDS -------------------------------------------------------------------------------
+// -------- Get matching candidates functions -------------------------------------------------------------------------------
 void Mesh::getRestrictedMatchingCandidates()
 {
     assert(!this->_lines.empty());
