@@ -64,8 +64,9 @@ int main(int argc, char *argv[])
     // ---------- Test Viterbi ---------------------------
     vector<int> S1 = m.getLines()[0];
     vector<int> S2 = m.getLines()[1];
-    std::cout << "S2 size: " << S2.size() << std::endl;
-    std::cout << "S2 range: " << S2[0] << " - " << S2[S2.size()-1] << std::endl;
+    vector<int> S3 = m.getLines()[2];
+//    std::cout << "S3 range: " << S3[0] << " - " << S3[S3.size()-1] << std::endl;
+//    std::cout << "S2 range: " << S2[0] << " - " << S2[S2.size()-1] << std::endl;
     vector<vector<int>> candidates;
     for (int i = 0; i < S1.size(); i++) {
         candidates.push_back(S2);
