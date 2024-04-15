@@ -492,7 +492,7 @@ vector<int> Mesh::viterbi(vector<int> S, vector<vector<int>> candidates, bool le
     // all final scores are in scores[][K-1]
     int final_index = 0;
     float max_score = 0;
-    for (int i = 0; i < M; i++) {
+    for (int i = 0; i < prev_sequences.size(); i++) {
         if (scores[i][K-1] > max_score) {
             max_score = scores[i][K-1];
             final_index = i;
@@ -521,7 +521,7 @@ void Mesh::getMatches() {
             }
             right_candidates.push_back(point_right_candidates);
         }
-        std::cout << "here" << std::endl;
+        std::cout << "here for one strip" << std::endl;
 
         // starting finding matches for S
         vector<int> left_matches = viterbi(S, left_candidates, true);
