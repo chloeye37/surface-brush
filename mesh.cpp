@@ -164,22 +164,48 @@ void Mesh::debugSaveToFile(const string &outStrokeFilePath, const string &outMes
     ofstream outStrokeFile;
     outStrokeFile.open(outStrokeFilePath);
 
+//    // Write vertices
+//    for (size_t i = 0; i < verticesForVisualization.size(); i++)
+//    {
+//        Vertex *v = verticesForVisualization[i];
+//        outStrokeFile << "v " << v->position[0] << " " << v->position[1] << " " << v->position[2] << endl;
+//    }
+
     // Write vertices
-    for (size_t i = 0; i < verticesForVisualization.size(); i++)
+    for (size_t i = 0; i < _vertices.size(); i++)
     {
-        Vertex *v = verticesForVisualization[i];
+        Vertex *v = _vertices[i];
         outStrokeFile << "v " << v->position[0] << " " << v->position[1] << " " << v->position[2] << endl;
     }
 
     // Write strokes
-    //    for (size_t i = 0; i < strokesForVisualization.size(); i++)
-    //    {
-    //        const vector<int> &l = strokesForVisualization[i];
-    //        for (size_t j = 0; j < l.size() - 1; j++)
-    //        {
-    //            outStrokeFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
-    //        }
-    //    }
+    // Write original line segments
+    for (size_t i = 0; i < _lines.size(); i++)
+    {
+        const vector<int> &l = _lines[i];
+        for (size_t j = 0; j < l.size() - 1; j++)
+        {
+            outStrokeFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
+        }
+    }
+    // Write a line segment if there is a match between two points
+    for (size_t i = 0; i < _vertices.size(); i++)
+    {
+        if (leftMatch.at(i) != -1) {
+            outStrokeFile << "l " << i+1 << " " << leftMatch.at(i)+1 << endl;
+        }
+        if (rightMatch.at(i) != -1) {
+            outStrokeFile << "l " << i+1 << " " << rightMatch.at(i)+1 << endl;
+        }
+    }
+//    for (size_t i = 0; i < strokesForVisualization.size(); i++)
+//    {
+//        const vector<int> &l = strokesForVisualization[i];
+//        for (size_t j = 0; j < l.size() - 1; j++)
+//        {
+//            outStrokeFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
+//        }
+//    }
 
     outStrokeFile.close();
 }
