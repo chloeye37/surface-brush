@@ -122,6 +122,9 @@ void Mesh::debugSaveToFile(const string &outStrokeFilePath, const string &outMes
     vector<Vertex *> verticesForVisualization;
     int theOnlyBaseVertexWanted = 50;
     verticesForVisualization.push_back(this->_vertices[theOnlyBaseVertexWanted]);
+
+    //Ok so now the issue is here
+
     for (const auto &[baseVertexIndex, otherVertexIndices] : this->leftRestrictedMatchingCandidates)
     {
         //        if (theOnlyBaseVertexWanted == -1) {
@@ -191,11 +194,15 @@ void Mesh::debugSaveToFile(const string &outStrokeFilePath, const string &outMes
     // Write a line segment if there is a match between two points
     for (size_t i = 0; i < _vertices.size(); i++)
     {
-        if (leftMatch.at(i) != -1) {
-            outStrokeFile << "l " << i+1 << " " << leftMatch.at(i)+1 << endl;
+        if(leftMatch.contains(i)){
+            if (leftMatch.at(i) != -1) {
+                outStrokeFile << "l " << i+1 << " " << leftMatch.at(i)+1 << endl;
+            }
         }
-        if (rightMatch.at(i) != -1) {
-            outStrokeFile << "l " << i+1 << " " << rightMatch.at(i)+1 << endl;
+        if(rightMatch.contains(i)){
+            if (rightMatch.at(i) != -1) {
+                outStrokeFile << "l " << i+1 << " " << rightMatch.at(i)+1 << endl;
+            }
         }
     }
 //    for (size_t i = 0; i < strokesForVisualization.size(); i++)
@@ -360,17 +367,28 @@ vector<vector<int>> Mesh::getLines() {
 
 vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections)
 {
+    //TODO: Sort connections first by the first index!
+    vector<Vector2i> sortedconns = connections;
+
+    struct sort_pred {
+        bool operator()(const Vector2i &left, const Vector2i &right) {
+            return left[0] < right[0];
+        }
+    };
+
+    std::sort(sortedconns.begin(), sortedconns.end(), sort_pred());
+
     std::vector<std::vector<int>> polylines = std::vector<std::vector<int>>();
     int index = 0;
-    while (index < connections.size())
+    while (index < sortedconns.size())
     {
         vector<int> currentpoly = std::vector<int>();
-        currentpoly.push_back(connections[index][0]);
-        currentpoly.push_back(connections[index][1]);
+        currentpoly.push_back(sortedconns[index][0]);
+        currentpoly.push_back(sortedconns[index][1]);
         index = index + 1;
-        while (connections[index][0] == currentpoly[currentpoly.size() - 1])
+        while (sortedconns[index][0] == currentpoly[currentpoly.size() - 1])
         {
-            currentpoly.push_back(connections[index][1]);
+            currentpoly.push_back(sortedconns[index][1]);
             index = index + 1;
         }
         polylines.push_back(currentpoly);
