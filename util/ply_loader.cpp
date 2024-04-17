@@ -34,7 +34,7 @@ vector<pair<Vector3f,float>> plyLoader::loadFromFile(string fileName) {
 
         Vector3f normal(vertexNx[i], vertexNy[i], vertexNz[i]);
         // std::cout << "about to search for " + std::to_string(neighborinds.at(i)) << std::endl;
-        float dist = (Vector3f(vPos[i][0],vPos[i][1],vPos[i][2]) - Vector3f(vPos[neighborinds.at(i)][0],vPos[neighborinds.at(i)][1],vPos[neighborinds.at(i)][2])).norm();
+        float dist = 2*(Vector3f(vPos[i][0],vPos[i][1],vPos[i][2]) - Vector3f(vPos[neighborinds.at(i)][0],vPos[neighborinds.at(i)][1],vPos[neighborinds.at(i)][2])).norm();
         // std::cout << "strokewidth" + std::to_string(dist) << std::endl;
         vertexNormals.push_back(std::make_pair(normal, dist));
     }
