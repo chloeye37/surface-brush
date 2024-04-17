@@ -6,6 +6,7 @@
 #include <chrono>
 
 #include "mesh.h"
+#include "util/settings.h"
 
 
 std::vector<std::vector<int>> parse_to_polyline(std::vector<Eigen::Vector2i> connections){
@@ -44,15 +45,18 @@ int main(int argc, char *argv[])
 
     // Parse common inputs
     QSettings settings( args[0], QSettings::IniFormat );
-    QString inObjFile  = settings.value("IO/inObjFile").toString();
-    QString inPlyFile  = settings.value("IO/inPlyFile").toString();
-    QString outStrokeFile = settings.value("IO/outStrokeFile").toString();
-    QString outMeshFile = settings.value("IO/outMeshFile").toString();
-
+    Settings* appSettings = Settings::getInstance();
+    appSettings->setIniFilePath(args[0]);
+    appSettings->inObjFile  = settings.value("IO/inObjFile").toString().toStdString();
+    appSettings->inPlyFile = settings.value("IO/inPlyFile").toString().toStdString();
+    appSettings->outStrokeFile = settings.value("IO/outStrokeFile").toString().toStdString();
+    appSettings->outMeshFile = settings.value("IO/outMeshFile").toString().toStdString();
+    appSettings->d_max = settings.value("Params/d_max").toFloat();
+    appSettings->isDebug = settings.value("Debug/isDebug").toBool();
 
     // Load
     Mesh m;
-    m.loadFromFile(inObjFile.toStdString(), inPlyFile.toStdString());
+    m.loadFromFile();
 
     // // Start timing
     // auto t0 = std::chrono::high_resolution_clock::now();

@@ -16,11 +16,14 @@
 #include <fstream>
 
 // -------- PUBLIC STARTS -------------------------------------------------------------------------------
+Mesh::Mesh() {
+    this->settings = Settings::getInstance();
+}
 
-void Mesh::loadFromFile(const std::string &inObjFilePath, const std::string &inPlyFilePath)
+void Mesh::loadFromFile()
 {
     // load obj file
-    pair<vector<Vector3f>, vector<Vector2i>> verticesAndLineSegments = objLoader::loadFromFile(inObjFilePath);
+    pair<vector<Vector3f>, vector<Vector2i>> verticesAndLineSegments = objLoader::loadFromFile(this->settings->inObjFile);
     vector<Vector3f> vertices = verticesAndLineSegments.first;
     vector<Vector2i> lineSegments = verticesAndLineSegments.second;
     vector<vector<int>> lines = this->parseToPolyline(lineSegments);
@@ -38,7 +41,9 @@ void Mesh::loadFromFile(const std::string &inObjFilePath, const std::string &inP
     }
 
     //    this->_vertices = vertices;
+    //    this->_vertices = vertices;
     this->_lines = lines;
+    //    this->_vertexNormals = normals;
     //    this->_vertexNormals = normals;
     this->_vertices = m_vertices;
 
@@ -79,14 +84,15 @@ void Mesh::calculateTangents(const vector<Vector3f> &vertices, const vector<Vect
 void Mesh::saveToFile(const string &outStrokeFilePath, const string &outMeshFilePath)
 {
     ofstream outStrokeFile;
-    outStrokeFile.open(outStrokeFilePath);
+    outStrokeFile.open(this->settings->outStrokeFile);
 
     ofstream outMeshFile;
-    outMeshFile.open(outMeshFilePath);
+    outMeshFile.open(this->settings->outMeshFile);
 
     // Write vertices
     for (size_t i = 0; i < _vertices.size(); i++)
     {
+        Vertex *v = _vertices[i];
         Vertex *v = _vertices[i];
         outMeshFile << "v " << v->position[0] << " " << v->position[1] << " " << v->position[2] << endl;
         outStrokeFile << "v " << v->position[0] << " " << v->position[1] << " " << v->position[2] << endl;
@@ -96,6 +102,7 @@ void Mesh::saveToFile(const string &outStrokeFilePath, const string &outMeshFile
     for (size_t i = 0; i < _vertices.size(); i++)
     {
         Vertex *v = _vertices[i];
+        Vertex *v = _vertices[i];
         outMeshFile << "vn " << v->normal[0] << " " << v->normal[1] << " " << v->normal[2] << endl;
     }
 
@@ -104,12 +111,16 @@ void Mesh::saveToFile(const string &outStrokeFilePath, const string &outMeshFile
     {
         const Vector3i &f = _faces[i];
         outMeshFile << "f " << (f[0] + 1) << " " << (f[1] + 1) << " " << (f[2] + 1) << endl;
+        outMeshFile << "f " << (f[0] + 1) << " " << (f[1] + 1) << " " << (f[2] + 1) << endl;
     }
 
     // Write line segments (STROKE ONLY)
     for (size_t i = 0; i < _lines.size(); i++)
     {
         const vector<int> &l = _lines[i];
+        for (size_t j = 0; j < l.size() - 1; j++)
+        {
+            outStrokeFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
         for (size_t j = 0; j < l.size() - 1; j++)
         {
             outStrokeFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
@@ -225,16 +236,23 @@ void Mesh::debugSaveToFile(const string &outStrokeFilePath, const string &outMes
 // within 15% of overall stroke length from either end and remove the offending end-sections.
 void Mesh::preprocessLines()
 {
+void Mesh::preprocessLines()
+{
     vector<vector<int>> new_lines;
     int itr = 0;
     // process each line at a time
+    for (auto &line : _lines)
+    {
     for (auto &line : _lines)
     {
         // first calculate line length -- sum of all segment lengths
         float total_length = 0;
         for (int i = 1; i < line.size(); i++)
         {
+        for (int i = 1; i < line.size(); i++)
+        {
             // distance between vertex i and vertex i-1
+            total_length += (this->_vertices[line[i]]->position - this->_vertices[line[i - 1]]->position).norm();
             total_length += (this->_vertices[line[i]]->position - this->_vertices[line[i - 1]]->position).norm();
         }
 
@@ -244,17 +262,25 @@ void Mesh::preprocessLines()
         Vector3f prev_tangent = this->_vertices[line[1]]->position - this->_vertices[line[0]]->position; // tangent of the first vertex is just the line segment direction
         int cur_vert = 0;
         int next_vert = 1;
+        int cur_vert = 0;
+        int next_vert = 1;
         int cut_pos_forward = 0; // the vertex at which we should cut the line (remove every vertex before this cut_pos)
+        while (length_covered < 0.15 * total_length)
+        {
         while (length_covered < 0.15 * total_length)
         {
             Vector3f curA = this->_vertices[line[cur_vert]]->position;
             Vector3f curB = this->_vertices[line[next_vert]]->position;
             Vector3f curC = this->_vertices[line[next_vert + 1]]->position;
+            Vector3f curC = this->_vertices[line[next_vert + 1]]->position;
             Vector3f AC = curC - curA;
             Vector3f B_normal = this->_vertices[line[next_vert]]->normal;
             Vector3f AC_parallel = AC.dot(B_normal) / (B_normal.norm() * B_normal.norm()) * B_normal; // AC projected onto the direction of normal
+            Vector3f AC_parallel = AC.dot(B_normal) / (B_normal.norm() * B_normal.norm()) * B_normal; // AC projected onto the direction of normal
 
             Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
+            if (acos(cur_tangent.dot(prev_tangent) / (cur_tangent.norm() * prev_tangent.norm())) > M_PI / 4.0)
+            {
             if (acos(cur_tangent.dot(prev_tangent) / (cur_tangent.norm() * prev_tangent.norm())) > M_PI / 4.0)
             {
                 // remove everything before vertex B (starting from A)
@@ -263,6 +289,8 @@ void Mesh::preprocessLines()
             // move on to the next segment
             prev_tangent = cur_tangent;
             length_covered += (curB - curA).norm();
+            cur_vert++;
+            next_vert++;
             cur_vert++;
             next_vert++;
         }
@@ -276,14 +304,24 @@ void Mesh::preprocessLines()
         int cut_pos_backward = n - 1; // the vertex at which we should cut the line (remove every vertex after this cut_pos)
         while (length_covered < 0.15 * total_length)
         {
+        prev_tangent = this->_vertices[line[n - 2]]->position - this->_vertices[line[n - 1]]->position; // tangent of the first vertex is just the line segment direction
+        cur_vert = n - 1;
+        next_vert = n - 2;
+        int cut_pos_backward = n - 1; // the vertex at which we should cut the line (remove every vertex after this cut_pos)
+        while (length_covered < 0.15 * total_length)
+        {
             Vector3f curA = this->_vertices[line[cur_vert]]->position;
             Vector3f curB = this->_vertices[line[next_vert]]->position;
+            Vector3f curC = this->_vertices[line[next_vert - 1]]->position;
             Vector3f curC = this->_vertices[line[next_vert - 1]]->position;
             Vector3f AC = curC - curA;
             Vector3f B_normal = this->_vertices[line[next_vert]]->normal;
             Vector3f AC_parallel = AC.dot(B_normal) / (B_normal.norm() * B_normal.norm()) * B_normal; // AC projected onto the direction of normal
+            Vector3f AC_parallel = AC.dot(B_normal) / (B_normal.norm() * B_normal.norm()) * B_normal; // AC projected onto the direction of normal
 
             Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
+            if (acos(cur_tangent.dot(prev_tangent) / (cur_tangent.norm() * prev_tangent.norm())) > M_PI / 4.0)
+            {
             if (acos(cur_tangent.dot(prev_tangent) / (cur_tangent.norm() * prev_tangent.norm())) > M_PI / 4.0)
             {
                 // remove everything before vertex B (starting from A)
@@ -294,11 +332,15 @@ void Mesh::preprocessLines()
             length_covered += (curB - curA).norm();
             cur_vert--;
             next_vert--;
+            cur_vert--;
+            next_vert--;
         }
 
         // remove everything before cut_pos_forward and after cut_pos_backward
         // need to modify: _vertices (vector<Vector3f>), _lines (vector<vector<int>>), _vertexNormals (vector<Vector3f>)
         vector<int> new_line;
+        for (int i = cut_pos_forward; i <= cut_pos_backward; i++)
+        {
         for (int i = cut_pos_forward; i <= cut_pos_backward; i++)
         {
             new_line.push_back(line[i]);
@@ -308,9 +350,13 @@ void Mesh::preprocessLines()
         // logical removal of vertices
         for (int i = 0; i < cut_pos_forward; i++)
         {
+        for (int i = 0; i < cut_pos_forward; i++)
+        {
             _vertices[line[i]]->isActive = false;
         }
 
+        for (int i = n - 1; i > cut_pos_backward; i--)
+        {
         for (int i = n - 1; i > cut_pos_backward; i--)
         {
             _vertices[line[i]]->isActive = false;
@@ -328,9 +374,17 @@ void Mesh::preprocessLines()
     {
         if (_vertices[i]->isActive)
         {
+    vector<Vertex *> new_vertices;
+    for (int i = 0; i < _vertices.size(); i++)
+    {
+        if (_vertices[i]->isActive)
+        {
             index_map[i] = active_number;
             active_number++;
             new_vertices.push_back(this->_vertices[i]);
+        }
+        else
+        {
         }
         else
         {
@@ -343,7 +397,11 @@ void Mesh::preprocessLines()
     vector<vector<int>> final_lines;
     for (auto &line : _lines)
     {
+    for (auto &line : _lines)
+    {
         vector<int> final_line;
+        for (int vertex : line)
+        {
         for (int vertex : line)
         {
             final_line.push_back(index_map[vertex]);
@@ -353,6 +411,121 @@ void Mesh::preprocessLines()
     this->_lines = final_lines;
 }
 
+void Mesh::getRestrictedMatchingCandidates()
+{
+    assert(!this->_lines.empty());
+
+    for (int i = 0; i < this->_lines.size(); i++)
+    {
+        vector<int> stroke = this->_lines[i];
+        // split rest of strokes into left & right strokes
+        pair<vector<int>, vector<int>> split = this->splitStrokesIntoLeftRight(i);
+        vector<int> leftStrokeIndices = split.first;
+        vector<int> rightStrokeIndices = split.second;
+
+        int highestLeftMatches = 0;
+        int leftDominantStrokeIndex = -1;
+        for (int leftStrokeIndex : leftStrokeIndices)
+        {
+            // get highest matches stroke
+            int matches = this->calcNumberOfMatches(i, leftStrokeIndex, true);
+            if (matches > highestLeftMatches)
+            {
+                leftDominantStrokeIndex = leftStrokeIndex;
+                highestLeftMatches = matches;
+            }
+        }
+        // if leftDominantStrokeIndex == -1, then no left dominant stroke!
+
+        int highestRightMatches = 0;
+        int rightDominantStrokeIndex = -1;
+        for (int rightStrokeIndex : rightStrokeIndices)
+        {
+            // get highest matches stroke
+            int matches = this->calcNumberOfMatches(i, rightStrokeIndex, false);
+            if (matches > highestRightMatches)
+            {
+                rightDominantStrokeIndex = rightStrokeIndex;
+                highestRightMatches = matches;
+            }
+        }
+        // if rightDominantStrokeIndex == -1, then no right dominant stroke!
+
+        // get restricted matching candidates
+        for (int strokeVertexIndex = 0; strokeVertexIndex < stroke.size(); strokeVertexIndex++)
+        {
+            int vertexIndex = stroke[strokeVertexIndex]; // index of vertex in vector of vertices
+            if (!this->validVertexVertexMatch.contains(vertexIndex))
+            {
+                this->validVertexVertexMatch[vertexIndex] = unordered_map<int, unordered_set<int>>();
+            }
+            unordered_map<int, unordered_set<int>> dominantStrokeMaps = this->validVertexVertexMatch.at(vertexIndex);
+
+            unordered_set<int> vertexLeftRestrictedMatchingCandidates;
+            if (leftDominantStrokeIndex != -1)
+            {
+                if (!dominantStrokeMaps.contains(leftDominantStrokeIndex))
+                {
+                    dominantStrokeMaps[leftDominantStrokeIndex] = unordered_set<int>();
+                }
+                unordered_set<int> leftDominantStrokeMatches = dominantStrokeMaps.at(leftDominantStrokeIndex);
+                vertexLeftRestrictedMatchingCandidates.merge(leftDominantStrokeMatches);
+            }
+            this->leftRestrictedMatchingCandidates[vertexIndex] = vertexLeftRestrictedMatchingCandidates;
+
+            unordered_set<int> vertexRightRestrictedMatchingCandidates;
+            if (rightDominantStrokeIndex != -1)
+            {
+                if (!dominantStrokeMaps.contains(rightDominantStrokeIndex))
+                {
+                    dominantStrokeMaps[rightDominantStrokeIndex] = unordered_set<int>();
+                }
+                unordered_set<int> rightDominantStrokeMatches = dominantStrokeMaps.at(rightDominantStrokeIndex);
+                vertexRightRestrictedMatchingCandidates.merge(rightDominantStrokeMatches);
+            }
+            this->rightRestrictedMatchingCandidates[vertexIndex] = vertexRightRestrictedMatchingCandidates;
+        }
+
+        // also consider vertices in the same stroke
+        for (int strokeVertexIndex = 0; strokeVertexIndex < stroke.size(); strokeVertexIndex++)
+        {
+            int vertexIndex = stroke[strokeVertexIndex];
+            for (int strokeVertexIndex2 = 0; strokeVertexIndex2 < stroke.size(); strokeVertexIndex2++)
+            {
+                int vertexIndex2 = stroke[strokeVertexIndex2];
+
+                if (vertexIndex == vertexIndex2)
+                    continue;
+
+                if (this->doTwoVerticesMatch(vertexIndex, vertexIndex2, true, true, i))
+                {
+                    if (!this->leftRestrictedMatchingCandidates.contains(vertexIndex))
+                    {
+                        this->leftRestrictedMatchingCandidates[vertexIndex] = unordered_set<int>();
+                    }
+                    unordered_set<int> leftMatches = this->leftRestrictedMatchingCandidates.at(vertexIndex);
+                    leftMatches.insert(vertexIndex2);
+                    this->leftRestrictedMatchingCandidates[vertexIndex] = leftMatches;
+                }
+                else if (this->doTwoVerticesMatch(vertexIndex, vertexIndex2, false, true, i))
+                {
+                    if (!this->rightRestrictedMatchingCandidates.contains(vertexIndex))
+                    {
+                        this->rightRestrictedMatchingCandidates[vertexIndex] = unordered_set<int>();
+                    }
+                    unordered_set<int> rightMatches = this->rightRestrictedMatchingCandidates.at(vertexIndex);
+                    rightMatches.insert(vertexIndex2);
+                    this->rightRestrictedMatchingCandidates[vertexIndex] = rightMatches;
+                }
+            }
+        }
+    }
+}
+
+void Mesh::cleanUp()
+{
+    for (int i = 0; i < this->_vertices.size(); i++)
+    {
 void Mesh::cleanUp()
 {
     for (int i = 0; i < this->_vertices.size(); i++)
@@ -366,6 +539,8 @@ vector<vector<int>> Mesh::getLines() {
 }
 
 // -------- PUBLIC ENDS -------------------------------------------------------------------------------
+
+
 
 // -------- PRIVATE STARTS -------------------------------------------------------------------------------
 
@@ -400,6 +575,35 @@ vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections)
     return polylines;
 }
 
+void Mesh::calculateTangents(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals)
+{
+    // loop through all lines
+    for (auto &line : _lines)
+    {
+        int n = line.size();
+        // loop through all vertices on the line
+        Vector3f first_tangent = vertices[line[1]] - vertices[line[0]]; // tangent of the first vertex is just the line segment direction
+        _vertices[line[0]]->tangent = first_tangent;
+
+        for (int i = 1; i < n - 1; i++)
+        {
+            Vector3f curA = vertices[line[i - 1]];
+            Vector3f curB = vertices[line[i]];
+            Vector3f curC = vertices[line[i + 1]];
+            Vector3f AC = curC - curA;
+            Vector3f B_normal = vertexNormals[line[i]];
+            Vector3f AC_parallel = AC.dot(B_normal) / (B_normal.norm() * B_normal.norm()) * B_normal; // AC projected onto the direction of normal
+
+            Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
+            _vertices[line[i]]->tangent = cur_tangent;
+        }
+        Vector3f last_tangent = vertices[line[n - 1]] - vertices[line[n - 2]]; // tangent of the last vertex is just the line segment direction
+        _vertices[line[n - 1]]->tangent = last_tangent;
+    }
+}
+
+float Mesh::vertexVertexScore(Vertex *P, Vertex *Q, bool leftside)
+{
 float Mesh::vertexVertexScore(Vertex *P, Vertex *Q, bool leftside)
 {
     Vector3f p = P->position;
@@ -410,6 +614,9 @@ float Mesh::vertexVertexScore(Vertex *P, Vertex *Q, bool leftside)
     Vector3f tq = Q->tangent;
     Vector3f pb = (tp.cross(P->normal)).normalized();
     Vector3f qb = (tq.cross(Q->normal)).normalized();
+    float da = (p - q).norm();
+    float dt = 0.5 * (abs((p - q).dot(tp)) + abs((p - q).dot(tq)));
+    // This is specifically for a left match.
     float da = (p - q).norm();
     float dt = 0.5 * (abs((p - q).dot(tp)) + abs((p - q).dot(tq)));
     // This is specifically for a left match.
@@ -429,8 +636,12 @@ float Mesh::vertexVertexScore(Vertex *P, Vertex *Q, bool leftside)
     Vector3f qc;
     if ((ql - pc).norm() < (qr - pc).norm())
     {
+    if ((ql - pc).norm() < (qr - pc).norm())
+    {
         qc = ql;
     }
+    else
+    {
     else
     {
         qc = qr;

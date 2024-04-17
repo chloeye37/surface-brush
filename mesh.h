@@ -3,9 +3,13 @@
 #include <vector>
 #include <map>
 #include <unordered_set>
+#include <map>
+#include <unordered_set>
 
 #include "Eigen/StdVector"
 #include "Eigen/Dense"
+
+#include "util/settings.h"
 
 using namespace Eigen;
 using namespace std;
@@ -16,7 +20,10 @@ EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Matrix3i);
 
 typedef struct Vertex
 {
+typedef struct Vertex
+{
     Vector3f position;
+    bool isActive;    // records whether the corresponding vertex has been deleted or not: if isActive is false then it has been deleted
     bool isActive;    // records whether the corresponding vertex has been deleted or not: if isActive is false then it has been deleted
     Vector3f tangent; // tangent vector
     Vector3f normal;  // normal vector
@@ -35,13 +42,14 @@ class Mesh
 {
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+    Mesh();
 
     void loadFromFile(const string &inObjFilePath, const string &inPlyFilePath);
     void saveToFile(const string &outStrokeFilePath, const string &outMeshFilePath);
     void debugSaveToFile(const string &outStrokeFilePath, const string &outMeshFilePath);
 
     void preprocessLines();
-    void calculateTangents(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals);
+    void getRestrictedMatchingCandidates();
 
     void cleanUp(); // perform any cleaning up at the end
     vector<vector<int>> getLines();
@@ -76,6 +84,8 @@ private:
 
     // helpers
     vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
+    // ------- preprocessing
+    void calculateTangents(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals);
     // ------- match computation
     float vertexVertexScore(Vertex* P, Vertex* Q, bool leftside);
     float persistenceScore(Vertex* Pi, Vertex* Qi, Vertex* Pi_1, Vertex* Qi_1); // Qi is the match of Pi, Qi_1 is the match of Pi_1; Pi and Pi_1 are consecutive vertices
