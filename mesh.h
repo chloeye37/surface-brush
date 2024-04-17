@@ -3,8 +3,6 @@
 #include <vector>
 #include <map>
 #include <unordered_set>
-#include <map>
-#include <unordered_set>
 
 #include "Eigen/StdVector"
 #include "Eigen/Dense"
@@ -20,22 +18,16 @@ EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Matrix3i);
 
 typedef struct Vertex
 {
-typedef struct Vertex
-{
     Vector3f position;
-    bool isActive;    // records whether the corresponding vertex has been deleted or not: if isActive is false then it has been deleted
     bool isActive;    // records whether the corresponding vertex has been deleted or not: if isActive is false then it has been deleted
     Vector3f tangent; // tangent vector
     Vector3f normal;  // normal vector
-    float strokeweight;
     // constructor with all fields
-    Vertex(Vector3f _position, bool _isActive, Vector3f _tangent, Vector3f _normal, float _weight)
-        : position(_position), isActive(_isActive), tangent(_tangent), normal(_normal), strokeweight(_weight){};
+    Vertex(Vector3f _position, bool _isActive, Vector3f _tangent, Vector3f _normal)
+        : position(_position), isActive(_isActive), tangent(_tangent), normal(_normal){};
     // constructor with all fields except tangent
-    Vertex(Vector3f _position, bool _isActive, Vector3f _normal, float _weight)
-        : position(_position), isActive(_isActive), tangent(Vector3f(0, 0, 0)), normal(_normal), strokeweight(_weight){};
-    //    int index; // index of the vertex in _vertices
-
+    Vertex(Vector3f _position, bool _isActive, Vector3f _normal)
+        : position(_position), isActive(_isActive), tangent(Vector3f(0, 0, 0)), normal(_normal){};
 } Vertex;
 
 class Mesh
@@ -44,9 +36,9 @@ public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
     Mesh();
 
-    void loadFromFile(const string &inObjFilePath, const string &inPlyFilePath);
-    void saveToFile(const string &outStrokeFilePath, const string &outMeshFilePath);
-    void debugSaveToFile(const string &outStrokeFilePath, const string &outMeshFilePath);
+    void loadFromFile();
+    void saveToFile();
+    void debugSaveToFile();
 
     void preprocessLines();
     void getRestrictedMatchingCandidates();
@@ -54,17 +46,16 @@ public:
     void cleanUp(); // perform any cleaning up at the end
     vector<vector<int>> getLines();
     vector<int> viterbi(vector<int> S, vector<vector<int>> candidates, bool leftSide); // for testing purposes, moved into public
-    void getRestrictedMatchingCandidates(); // temporarily public
     void getMatches();
 
-    bool isDebug = true;
-
 private:
+    // settings
+    Settings *settings;
+
     // ------- match computation
-    // float strokewidth = 0.5;
-    // float sigma = 1.5 * (strokewidth + strokewidth) / 2;
-    // // ------- restricted matching
-    // float d_max = 0.7f;
+    float strokewidth = 0.5;
+    float sigma = 1.5 * (strokewidth + strokewidth) / 2;
+    // ------- restricted matching
     // base vertex index : {
     //          other stroke index : {
     //                          set of vertices on other stroke that matches with base vertex
@@ -86,12 +77,11 @@ private:
     // ------- preprocessing
     void calculateTangents(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals);
     // ------- match computation
-    float vertexVertexScore(Vertex* P, Vertex* Q, bool leftside);
-    float persistenceScore(Vertex* Pi, Vertex* Qi, Vertex* Pi_1, Vertex* Qi_1); // Qi is the match of Pi, Qi_1 is the match of Pi_1; Pi and Pi_1 are consecutive vertices
+    float vertexVertexScore(Vertex *P, Vertex *Q, bool leftside);
+    float persistenceScore(Vertex *Pi, Vertex *Qi, Vertex *Pi_1, Vertex *Qi_1); // Qi is the match of Pi, Qi_1 is the match of Pi_1; Pi and Pi_1 are consecutive vertices
     float computeM(int pi, int qi, int pi_1, int qi_1, bool leftSide);
-  
+
     // ------- restricted matching
-//    void getRestrictedMatchingCandidates();
     pair<vector<int>, vector<int>> splitStrokesIntoLeftRight(int baseStrokeIndex);
     bool doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSameStroke, int strokeIndex);
     int calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool leftside);
