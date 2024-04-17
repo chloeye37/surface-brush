@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <array>
 
 #include <QFileInfo>
 #include <QString>
@@ -15,7 +16,8 @@
 #include <fstream>
 
 // -------- PUBLIC STARTS -------------------------------------------------------------------------------
-Mesh::Mesh() {
+Mesh::Mesh()
+{
     this->settings = Settings::getInstance();
 }
 
@@ -97,6 +99,9 @@ void Mesh::debugSaveToFile()
     vector<Vertex *> verticesForVisualization;
     int theOnlyBaseVertexWanted = 50;
     verticesForVisualization.push_back(this->_vertices[theOnlyBaseVertexWanted]);
+
+    // Ok so now the issue is here
+
     for (const auto &[baseVertexIndex, otherVertexIndices] : this->leftRestrictedMatchingCandidates)
     {
         //        if (theOnlyBaseVertexWanted == -1) {
@@ -140,13 +145,40 @@ void Mesh::debugSaveToFile()
     outStrokeFile.open(this->settings->outStrokeFile);
 
     // Write vertices
-    for (size_t i = 0; i < verticesForVisualization.size(); i++)
+    for (size_t i = 0; i < _vertices.size(); i++)
     {
-        Vertex *v = verticesForVisualization[i];
+        Vertex *v = _vertices[i];
         outStrokeFile << "v " << v->position[0] << " " << v->position[1] << " " << v->position[2] << endl;
     }
 
     // Write strokes
+    // Write original line segments
+    for (size_t i = 0; i < _lines.size(); i++)
+    {
+        const vector<int> &l = _lines[i];
+        for (size_t j = 0; j < l.size() - 1; j++)
+        {
+            outStrokeFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
+        }
+    }
+    // Write a line segment if there is a match between two points
+    for (size_t i = 0; i < _vertices.size(); i++)
+    {
+        if (leftMatch.contains(i))
+        {
+            if (leftMatch.at(i) != -1)
+            {
+                outStrokeFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
+            }
+        }
+        if (rightMatch.contains(i))
+        {
+            if (rightMatch.at(i) != -1)
+            {
+                outStrokeFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
+            }
+        }
+    }
     //    for (size_t i = 0; i < strokesForVisualization.size(); i++)
     //    {
     //        const vector<int> &l = strokesForVisualization[i];
@@ -410,25 +442,41 @@ void Mesh::cleanUp()
     }
 }
 
+vector<vector<int>> Mesh::getLines()
+{
+    return _lines;
+}
+
 // -------- PUBLIC ENDS -------------------------------------------------------------------------------
-
-
 
 // -------- PRIVATE STARTS -------------------------------------------------------------------------------
 
 vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections)
 {
+    // TODO: Sort connections first by the first index!
+    vector<Vector2i> sortedconns = connections;
+
+    struct sort_pred
+    {
+        bool operator()(const Vector2i &left, const Vector2i &right)
+        {
+            return left[0] < right[0];
+        }
+    };
+
+    std::sort(sortedconns.begin(), sortedconns.end(), sort_pred());
+
     std::vector<std::vector<int>> polylines = std::vector<std::vector<int>>();
     int index = 0;
-    while (index < connections.size())
+    while (index < sortedconns.size())
     {
         vector<int> currentpoly = std::vector<int>();
-        currentpoly.push_back(connections[index][0]);
-        currentpoly.push_back(connections[index][1]);
+        currentpoly.push_back(sortedconns[index][0]);
+        currentpoly.push_back(sortedconns[index][1]);
         index = index + 1;
-        while (connections[index][0] == currentpoly[currentpoly.size() - 1])
+        while (sortedconns[index][0] == currentpoly[currentpoly.size() - 1])
         {
-            currentpoly.push_back(connections[index][1]);
+            currentpoly.push_back(sortedconns[index][1]);
             index = index + 1;
         }
         polylines.push_back(currentpoly);
@@ -503,6 +551,7 @@ float Mesh::vertexVertexScore(Vertex *P, Vertex *Q, bool leftside)
     return finalscore;
 }
 
+// Pi_1 mean P_(i+1)
 float Mesh::persistenceScore(Vertex *Pi, Vertex *Qi, Vertex *Pi_1, Vertex *Qi_1)
 {
     Vector3f pi_1 = Pi_1->position;
@@ -513,6 +562,165 @@ float Mesh::persistenceScore(Vertex *Pi, Vertex *Qi, Vertex *Pi_1, Vertex *Qi_1)
     float finalscore = exp(-pow(dp, 2) / (2.f * pow(sigma, 2.f)));
     return finalscore;
 }
+
+// Intermediate M from step i-1 to i
+// pi_1 means p_(i-1)
+float Mesh::computeM(int pi, int qi, int pi_1, int qi_1, bool leftSide)
+{
+    float vv = vertexVertexScore(_vertices[pi_1], _vertices[qi_1], leftSide);
+    float pers = persistenceScore(_vertices[pi_1], _vertices[qi_1], _vertices[pi], _vertices[qi]);
+    return vv * pers;
+}
+
+/**
+ * @brief perform one viterbi on one stroke S to find the sequence of q's that maximizes the objective function of M_l
+ * @param vector<Vertex*> S: stroke to be processed
+ * @param vector<vector<Vertex*>> candidates: a vector of candidates vector<C(pi)> for each vertex pi in S
+ * @return vector<Vertex*> Q: sequence of q's, each qi is the optimal match for each pi in S
+ */
+vector<int> Mesh::viterbi(vector<int> S, vector<vector<int>> candidates, bool leftSide)
+{
+    int k = 1;        // time index
+    int K = S.size(); // number of steps = number of vertices in S
+    int M = 0;        // max of number of candidates among all points pi
+    for (int i = 0; i < candidates.size(); i++)
+    {
+        if (candidates[i].size() > M)
+        {
+            M = candidates[i].size();
+        }
+    }
+    // if (M == 0) return {}; // if S does not have any potential matches on this side
+    // construct a float[][] of size M*K
+    float scores[M][K];
+    // initialize the first column of dp to be all ones -- candidates for p0
+    for (int i = 0; i < candidates[0].size(); i++)
+    {
+        scores[i][0] = 1.0;
+    }
+    // also need to store the current sequence of states at each q at time k -- an array of vectors, the array is of fixed size M
+    vector<vector<int>> prev_sequences;
+    vector<vector<int>> cur_sequences;
+    // initialize the sequences to contain the starting points -- candidates for p0
+    for (int i = 0; i < candidates[0].size(); i++)
+    {
+        prev_sequences.push_back({candidates[0][i]});
+    }
+    if (candidates[0].size() == 0)
+    { // first node does not have candidate matches
+        prev_sequences.push_back({-1});
+    }
+    // begin iterating through each step
+    int prev_k = 0; // the previous step with valid states (candidates nonempty)
+    while (k < K)
+    {
+        if (candidates[k].size() == 0)
+        { // if the current node does not have candidate matches
+            // add -1 to each prev_sequence to indicate that it does not have a matching vertex
+            // then continue to next k without setting prev_k -- prev_k should be the last valid k
+            if (prev_sequences.empty())
+            {
+                prev_sequences.push_back({-1});
+            }
+            else
+            {
+                for (auto &seq : prev_sequences)
+                {
+                    seq.push_back(-1);
+                }
+            }
+
+            k++;
+            continue;
+        }
+        cur_sequences = {};
+        for (int cur = 0; cur < candidates[k].size(); cur++)
+        {
+            // for each current q, select the prev that maximizes M_score so far
+            // for prev, its M_score is stored in scores[prev][k-1]
+            float cur_max = -1e36;
+            int max_prev = 0;
+            for (int prev = 0; prev < candidates[prev_k].size(); prev++)
+            {
+                float stepM = computeM(S[k], candidates[k][cur], S[prev_k], candidates[prev_k][prev], leftSide);
+
+                if (stepM * scores[prev][prev_k] > cur_max)
+                {
+                    cur_max = stepM * scores[prev][prev_k];
+                    max_prev = prev;
+                }
+            }
+            vector<int> newvec = prev_sequences[max_prev];
+            newvec.push_back(candidates[k][cur]);
+            cur_sequences.push_back(newvec); // extend from prev_seqence by appending cur to the mas prev sequence
+            // use cur_max as the score for cur
+            scores[cur][k] = cur_max;
+        }
+        // updaet prev_sequences to be cur_sequences: prev_sequences = cur_sequences
+        prev_sequences = {};
+        for (int i = 0; i < cur_sequences.size(); i++)
+        {
+            prev_sequences.push_back(cur_sequences[i]);
+        }
+        prev_k = k;
+        k++;
+    }
+    // now select the q that has the maximum score and retrieve its sequence
+    // all final scores are in scores[][K-1]
+    int final_index = 0;
+    float max_score = 0;
+    for (int i = 0; i < prev_sequences.size(); i++)
+    {
+        if (scores[i][K - 1] > max_score)
+        {
+            max_score = scores[i][K - 1];
+            final_index = i;
+        }
+    }
+    return prev_sequences[final_index];
+}
+
+// populate the unordered_map<int, int> leftMatch and rightMatch
+void Mesh::getMatches()
+{
+    // process each strip
+    for (vector<int> S : _lines)
+    {
+        // convert the unordered_map<int, unordered_set<int>> leftRestrictedMatchingCandidates into two vector<vector<int>> candidates for S
+        vector<vector<int>> left_candidates;
+        vector<vector<int>> right_candidates;
+        for (int point : S)
+        {
+            vector<int> point_left_candidates = {};
+            if (leftRestrictedMatchingCandidates.contains(point))
+            { // if it has some potential left matches
+                point_left_candidates.insert(point_left_candidates.end(), leftRestrictedMatchingCandidates.at(point).begin(), leftRestrictedMatchingCandidates.at(point).end());
+            }
+            left_candidates.push_back(point_left_candidates);
+
+            vector<int> point_right_candidates = {};
+            if (rightRestrictedMatchingCandidates.contains(point))
+            { // if it has some potential right matches
+                point_right_candidates.insert(point_right_candidates.end(), rightRestrictedMatchingCandidates.at(point).begin(), rightRestrictedMatchingCandidates.at(point).end());
+            }
+            right_candidates.push_back(point_right_candidates);
+        }
+        std::cout << "here for one strip" << std::endl;
+
+        // starting finding matches for S
+        vector<int> left_matches = viterbi(S, left_candidates, true);
+        vector<int> right_matches = viterbi(S, right_candidates, false);
+
+        // populate unordered_map<int, int> leftMatch and rightMatch
+        for (int i = 0; i < S.size(); i++)
+        {
+            leftMatch.insert({S[i], left_matches[i]});
+            rightMatch.insert({S[i], right_matches[i]});
+        }
+    }
+}
+
+// -------- Get matching candidates functions -------------------------------------------------------------------------------
 
 /**
  * @brief Mesh::splitStrokesIntoLeftRight
