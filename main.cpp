@@ -54,7 +54,6 @@ int main(int argc, char *argv[])
     appSettings->inPlyFile = settings.value("IO/inPlyFile").toString().toStdString();
     appSettings->outStrokeFile = settings.value("IO/outStrokeFile").toString().toStdString();
     appSettings->outMeshFile = settings.value("IO/outMeshFile").toString().toStdString();
-    appSettings->d_max = settings.value("Params/d_max").toFloat();
     appSettings->isDebug = settings.value("Debug/isDebug").toBool();
 
     // Load
