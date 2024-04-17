@@ -91,5 +91,5 @@ int main(int argc, char *argv[])
     // Clean up
     m.cleanUp();
 
-    // a.exit();
+    a.exit();
 }

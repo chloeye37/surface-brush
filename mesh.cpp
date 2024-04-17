@@ -705,7 +705,6 @@ void Mesh::getMatches()
             }
             right_candidates.push_back(point_right_candidates);
         }
-        std::cout << "here for one strip" << std::endl;
 
         // starting finding matches for S
         vector<int> left_matches = viterbi(S, left_candidates, true);
