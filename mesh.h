@@ -20,12 +20,13 @@ typedef struct Vertex
     bool isActive;    // records whether the corresponding vertex has been deleted or not: if isActive is false then it has been deleted
     Vector3f tangent; // tangent vector
     Vector3f normal;  // normal vector
+    float strokeweight;
     // constructor with all fields
-    Vertex(Vector3f _position, bool _isActive, Vector3f _tangent, Vector3f _normal)
-        : position(_position), isActive(_isActive), tangent(_tangent), normal(_normal){};
+    Vertex(Vector3f _position, bool _isActive, Vector3f _tangent, Vector3f _normal, float _weight)
+        : position(_position), isActive(_isActive), tangent(_tangent), normal(_normal), strokeweight(_weight){};
     // constructor with all fields except tangent
-    Vertex(Vector3f _position, bool _isActive, Vector3f _normal)
-        : position(_position), isActive(_isActive), tangent(Vector3f(0, 0, 0)), normal(_normal){};
+    Vertex(Vector3f _position, bool _isActive, Vector3f _normal, float _weight)
+        : position(_position), isActive(_isActive), tangent(Vector3f(0, 0, 0)), normal(_normal), strokeweight(_weight){};
     //    int index; // index of the vertex in _vertices
 
 } Vertex;
@@ -53,10 +54,10 @@ public:
 
 private:
     // ------- match computation
-    float strokewidth = 0.5;
-    float sigma = 1.5 * (strokewidth + strokewidth) / 2;
-    // ------- restricted matching
-    float d_max = 0.7f;
+    // float strokewidth = 0.5;
+    // float sigma = 1.5 * (strokewidth + strokewidth) / 2;
+    // // ------- restricted matching
+    // float d_max = 0.7f;
     // base vertex index : {
     //          other stroke index : {
     //                          set of vertices on other stroke that matches with base vertex

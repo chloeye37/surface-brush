@@ -13,7 +13,7 @@ using namespace std;
 namespace plyLoader {
 
 // load normals
-vector<Vector3f> loadFromFile(string fileName);
+vector<pair<Vector3f,float>> loadFromFile(string fileName);
 
 }
 
