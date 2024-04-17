@@ -30,21 +30,24 @@ void Mesh::loadFromFile()
     vector<vector<int>> lines = this->parseToPolyline(lineSegments);
 
     // load ply file
-    vector<Vector3f> normals = plyLoader::loadFromFile(this->settings->inPlyFile);
+    vector<pair<Vector3f,float>> normalsAndStrokeWidths = plyLoader::loadFromFile(this->settings->inPlyFile);
 
     // populate the _vertices vector
     vector<Vertex *> m_vertices;
     for (int i = 0; i < vertices.size(); i++)
     {
-        Vertex *vertex = new Vertex(vertices[i], true, normals[i]);
+        Vertex *vertex = new Vertex(vertices[i], true, normalsAndStrokeWidths[i].first, normalsAndStrokeWidths[i].second);
         // vertex.tangent is set later in calculateTangents()
         m_vertices.push_back(vertex);
     }
 
-    //    this->_vertices = vertices;
     this->_lines = lines;
-    //    this->_vertexNormals = normals;
     this->_vertices = m_vertices;
+
+    std::vector<Vector3f> normals = std::vector<Vector3f>();
+    for(int i = 0; i < normalsAndStrokeWidths.size(); i++){
+        normals.push_back(normalsAndStrokeWidths[i].first);
+    }
 
     calculateTangents(vertices, normals);
 }
@@ -521,19 +524,21 @@ float Mesh::vertexVertexScore(Vertex *P, Vertex *Q, bool leftside)
     Vector3f qb = (tq.cross(Q->normal)).normalized();
     float da = (p - q).norm();
     float dt = 0.5 * (abs((p - q).dot(tp)) + abs((p - q).dot(tq)));
+    float pStrokeWidth = P->strokeWidth;
+    float qStrokeWidth = Q->strokeWidth;
     // This is specifically for a left match.
     Vector3f pc;
     if (leftside)
     {
-        pc = p - strokewidth * pb;
+        pc = p - pStrokeWidth * pb;
     }
     else
     {
-        pc = p + strokewidth * pb;
+        pc = p + pStrokeWidth * pb;
     }
 
-    Vector3f ql = q - strokewidth * qb;
-    Vector3f qr = q + strokewidth * qb;
+    Vector3f ql = q - qStrokeWidth * qb;
+    Vector3f qr = q + qStrokeWidth * qb;
 
     Vector3f qc;
     if ((ql - pc).norm() < (qr - pc).norm())
@@ -547,6 +552,7 @@ float Mesh::vertexVertexScore(Vertex *P, Vertex *Q, bool leftside)
     Vector3f mpqprime = 0.5 * (pc + qc);
     Vector3f mpq = 0.5 * (p + q);
     float dln = (mpq - mpqprime).norm();
+    float sigma = 1.5f/2.f*(pStrokeWidth + qStrokeWidth);
     float finalscore = exp(-pow(da + dt + dln, 2) / (2.f * pow(sigma, 2.f)));
     return finalscore;
 }
@@ -558,7 +564,11 @@ float Mesh::persistenceScore(Vertex *Pi, Vertex *Qi, Vertex *Pi_1, Vertex *Qi_1)
     Vector3f qi_1 = Qi_1->position;
     Vector3f pi = Pi->position;
     Vector3f qi = Qi->position;
+    float pStrokeWidth = Pi->strokeWidth;
+    float qStrokeWidth = Qi->strokeWidth;
     float dp = ((pi_1 - pi) - (qi_1 - qi)).norm() + ((pi_1 - qi) - (qi_1 - pi)).norm() + ((pi_1 - qi_1) - (pi - qi)).norm();
+
+    float sigma = 1.5f/2.f*(pStrokeWidth + qStrokeWidth);
     float finalscore = exp(-pow(dp, 2) / (2.f * pow(sigma, 2.f)));
     return finalscore;
 }
@@ -794,7 +804,11 @@ bool Mesh::doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSa
 
     // condition 1
     float length = pq.norm();
-    if (length > this->settings->d_max)
+    float pStrokeWidth = p->strokeWidth;
+    float qStrokeWidth = q->strokeWidth;
+
+    float sigma = 1.5f/2.f*(pStrokeWidth + qStrokeWidth);
+    if (length > sigma)
     {
         return false;
     }
