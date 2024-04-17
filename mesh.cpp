@@ -16,7 +16,8 @@
 #include <fstream>
 
 // -------- PUBLIC STARTS -------------------------------------------------------------------------------
-Mesh::Mesh() {
+Mesh::Mesh()
+{
     this->settings = Settings::getInstance();
 }
 
@@ -138,7 +139,6 @@ void Mesh::debugSaveToFile(const string &outStrokeFilePath, const string &outMes
     int theOnlyBaseVertexWanted = 50;
     verticesForVisualization.push_back(this->_vertices[theOnlyBaseVertexWanted]);
 
-    //Ok so now the issue is here
 
     for (const auto &[baseVertexIndex, otherVertexIndices] : this->leftRestrictedMatchingCandidates)
     {
@@ -209,25 +209,29 @@ void Mesh::debugSaveToFile(const string &outStrokeFilePath, const string &outMes
     // Write a line segment if there is a match between two points
     for (size_t i = 0; i < _vertices.size(); i++)
     {
-        if(leftMatch.contains(i)){
-            if (leftMatch.at(i) != -1) {
-                outStrokeFile << "l " << i+1 << " " << leftMatch.at(i)+1 << endl;
+       if (leftMatch.contains(i))
+        {
+            if (leftMatch.at(i) != -1)
+            {
+                outStrokeFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
             }
         }
-        if(rightMatch.contains(i)){
-            if (rightMatch.at(i) != -1) {
-                outStrokeFile << "l " << i+1 << " " << rightMatch.at(i)+1 << endl;
+        if (rightMatch.contains(i))
+        {
+            if (rightMatch.at(i) != -1)
+            {
+                outStrokeFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
             }
         }
     }
-//    for (size_t i = 0; i < strokesForVisualization.size(); i++)
-//    {
-//        const vector<int> &l = strokesForVisualization[i];
-//        for (size_t j = 0; j < l.size() - 1; j++)
-//        {
-//            outStrokeFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
-//        }
-//    }
+    //    for (size_t i = 0; i < strokesForVisualization.size(); i++)
+    //    {
+    //        const vector<int> &l = strokesForVisualization[i];
+    //        for (size_t j = 0; j < l.size() - 1; j++)
+    //        {
+    //            outStrokeFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
+    //        }
+    //    }
 
     outStrokeFile.close();
 }
@@ -540,13 +544,10 @@ vector<vector<int>> Mesh::getLines() {
 
 // -------- PUBLIC ENDS -------------------------------------------------------------------------------
 
-
-
 // -------- PRIVATE STARTS -------------------------------------------------------------------------------
 
 vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections)
 {
-    //TODO: Sort connections first by the first index!
     vector<Vector2i> sortedconns = connections;
 
     struct sort_pred {
@@ -698,6 +699,7 @@ vector<int> Mesh::viterbi(vector<int> S, vector<vector<int>> candidates, bool le
     // construct a float[][] of size M*K
     float scores[M][K];
     // initialize the first column of dp to be all ones -- candidates for p0
+
     for (int i = 0; i < candidates[0].size(); i++) {
         scores[i][0] = 1.0;
     }
@@ -713,7 +715,7 @@ vector<int> Mesh::viterbi(vector<int> S, vector<vector<int>> candidates, bool le
     }
     // begin iterating through each step
     int prev_k = 0; // the previous step with valid states (candidates nonempty)
-    while (k < K) {
+while (k < K) {
         if (candidates[k].size() == 0) { // if the current node does not have candidate matches
             // add -1 to each prev_sequence to indicate that it does not have a matching vertex
             // then continue to next k without setting prev_k -- prev_k should be the last valid k
@@ -721,6 +723,7 @@ vector<int> Mesh::viterbi(vector<int> S, vector<vector<int>> candidates, bool le
                 prev_sequences.push_back({-1});
             } else {
                 for (auto & seq : prev_sequences) {
+
                     seq.push_back(-1);
                 }
             }
@@ -729,7 +732,7 @@ vector<int> Mesh::viterbi(vector<int> S, vector<vector<int>> candidates, bool le
             continue;
         }
         cur_sequences = {};
-        for (int cur = 0; cur < candidates[k].size(); cur++) {
+for (int cur = 0; cur < candidates[k].size(); cur++) {
             // for each current q, select the prev that maximizes M_score so far
             // for prev, its M_score is stored in scores[prev][k-1]
             float cur_max = - 1e36;
@@ -760,7 +763,7 @@ vector<int> Mesh::viterbi(vector<int> S, vector<vector<int>> candidates, bool le
     // all final scores are in scores[][K-1]
     int final_index = 0;
     float max_score = 0;
-    for (int i = 0; i < prev_sequences.size(); i++) {
+for (int i = 0; i < prev_sequences.size(); i++) {
         if (scores[i][K-1] > max_score) {
             max_score = scores[i][K-1];
             final_index = i;
@@ -784,29 +787,26 @@ void Mesh::getMatches() {
             left_candidates.push_back(point_left_candidates);
 
             vector<int> point_right_candidates = {};
-            if (rightRestrictedMatchingCandidates.contains(point)) { // if it has some potential right matches
+if (rightRestrictedMatchingCandidates.contains(point)) { // if it has some potential right matches
                 point_right_candidates.insert(point_right_candidates.end(), rightRestrictedMatchingCandidates.at(point).begin(), rightRestrictedMatchingCandidates.at(point).end());
             }
             right_candidates.push_back(point_right_candidates);
         }
-        std::cout << "here for one strip" << std::endl;
+
 
         // starting finding matches for S
         vector<int> left_matches = viterbi(S, left_candidates, true);
         vector<int> right_matches = viterbi(S, right_candidates, false);
 
         // populate unordered_map<int, int> leftMatch and rightMatch
-        for (int i = 0; i < S.size(); i++) {
+for (int i = 0; i < S.size(); i++) {
             leftMatch.insert({S[i], left_matches[i]});
             rightMatch.insert({S[i], right_matches[i]});
         }
     }
 }
 
-
-
-
-// -------- Get matching candidates functions -------------------------------------------------------------------------------
+      // -------- Get matching candidates functions -------------------------------------------------------------------------------
 void Mesh::getRestrictedMatchingCandidates()
 {
     assert(!this->_lines.empty());

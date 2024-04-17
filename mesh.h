@@ -54,7 +54,6 @@ public:
     void cleanUp(); // perform any cleaning up at the end
     vector<vector<int>> getLines();
     vector<int> viterbi(vector<int> S, vector<vector<int>> candidates, bool leftSide); // for testing purposes, moved into public
-
     void getRestrictedMatchingCandidates(); // temporarily public
     void getMatches();
 
@@ -90,9 +89,7 @@ private:
     float vertexVertexScore(Vertex* P, Vertex* Q, bool leftside);
     float persistenceScore(Vertex* Pi, Vertex* Qi, Vertex* Pi_1, Vertex* Qi_1); // Qi is the match of Pi, Qi_1 is the match of Pi_1; Pi and Pi_1 are consecutive vertices
     float computeM(int pi, int qi, int pi_1, int qi_1, bool leftSide);
-
-
-
+  
     // ------- restricted matching
 //    void getRestrictedMatchingCandidates();
     pair<vector<int>, vector<int>> splitStrokesIntoLeftRight(int baseStrokeIndex);
