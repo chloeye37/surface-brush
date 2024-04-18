@@ -440,7 +440,7 @@ void Mesh::calculateTangents(const vector<Vector3f> &vertices, const vector<Vect
     {
         int n = line.size();
         // loop through all vertices on the line
-        Vector3f first_tangent = vertices[line[1]] - vertices[line[0]]; // tangent of the first vertex is just the line segment direction
+        Vector3f first_tangent = (vertices[line[1]] - vertices[line[0]]).normalized(); // tangent of the first vertex is just the line segment direction
         _vertices[line[0]]->tangent = first_tangent;
 
         for (int i = 1; i < n - 1; i++)
@@ -455,7 +455,7 @@ void Mesh::calculateTangents(const vector<Vector3f> &vertices, const vector<Vect
             Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
             _vertices[line[i]]->tangent = cur_tangent;
         }
-        Vector3f last_tangent = vertices[line[n - 1]] - vertices[line[n - 2]]; // tangent of the last vertex is just the line segment direction
+        Vector3f last_tangent = (vertices[line[n - 1]] - vertices[line[n - 2]]).normalized(); // tangent of the last vertex is just the line segment direction
         _vertices[line[n - 1]]->tangent = last_tangent;
     }
 }
@@ -735,7 +735,7 @@ pair<vector<int>, vector<int>> Mesh::splitStrokesIntoLeftRight(int baseStrokeInd
     int baseStrokeSize = baseStroke.size();
     int baseStrokeMidpoint = (int)((baseStrokeSize - (baseStrokeSize % 2)) / 2);
     Vertex *baseStrokeMidpointVertex = this->_vertices[baseStroke[baseStrokeMidpoint]];
-    Vector3f baseBinormal = baseStrokeMidpointVertex->tangent.cross(baseStrokeMidpointVertex->normal);
+    Vector3f baseBinormal = (baseStrokeMidpointVertex->tangent.cross(baseStrokeMidpointVertex->normal)).normalized();
 
     for (int i = 0; i < this->_lines.size(); i++)
     {
@@ -748,7 +748,7 @@ pair<vector<int>, vector<int>> Mesh::splitStrokesIntoLeftRight(int baseStrokeInd
         int currStrokeMidpoint = (int)((currStrokeSize - (currStrokeSize % 2)) / 2);
         int currStrokeMidpointInd = currStroke[currStrokeMidpoint];
         Vertex *currStrokeMidpointVertex = this->_vertices[currStrokeMidpointInd];
-        Vector3f baseToCurrVec = currStrokeMidpointVertex->position - baseStrokeMidpointVertex->position;
+        Vector3f baseToCurrVec = (currStrokeMidpointVertex->position - baseStrokeMidpointVertex->position).normalized();
 
         float dotProduct = baseBinormal.dot(baseToCurrVec);
         if (dotProduct > 0)
