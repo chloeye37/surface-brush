@@ -84,6 +84,10 @@ int main(int argc, char *argv[])
 
     // Save
     //    m.saveToFile(outStrokeFile.toStdString(), outMeshFile.toStdString());
+
+    //NOTE!!!! Debug save to file currently does not really save faces in a way that makes sense, mostly because matches
+    //between edges are directed(Chloe knows about this). One way to make sure we don't double coumt faces is to make a hash
+    //out of each face's indices
     m.debugSaveToFile();
     std::cout << "Saved to file." << std::endl;
 
