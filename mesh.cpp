@@ -525,7 +525,11 @@ float Mesh::computeM(int pi, int qi, int pi_1, int qi_1, bool leftSide)
 {
     float vv = vertexVertexScore(_vertices[pi_1], _vertices[qi_1], leftSide);
     float pers = persistenceScore(_vertices[pi_1], _vertices[qi_1], _vertices[pi], _vertices[qi]);
+
+    // naively punish inconsecutive qi and qi-1
+    if (abs(qi - qi_1) > 1) return 1e-10*vv*pers;
     return vv * pers;
+
 }
 
 /**
@@ -661,6 +665,34 @@ void Mesh::getMatches()
             }
             right_candidates.push_back(point_right_candidates);
         }
+        // ========== check for previous matches and adjust candidate sets
+        for (int i = 0; i < S.size(); i++) {
+            int point = S[i];
+            if (currentMatches.contains(point)) {
+                for (int potential_match : currentMatches.at(point)) {
+                    // see if it's on the left or right side of point using the binormal
+                    Vector3f binormal = _vertices[point]->tangent.cross(_vertices[point]->normal);
+                    bool hasRightBefore = false; bool hasLeftBefore = false;
+                    // if it lines up with the binormal it's on right side, should go into right candidates
+                    if ((_vertices[potential_match]->position - _vertices[point]->position).dot(binormal) > 0) { // right side
+                        if (hasRightBefore) {
+                            right_candidates[i].push_back(potential_match);
+                        } else {
+                            right_candidates[i] = {potential_match};
+                            hasRightBefore = true;
+                        }
+
+                    }else {  // left side
+                        if (hasLeftBefore) {
+                            left_candidates[i].push_back(potential_match);
+                        } else {
+                            left_candidates[i] = {potential_match};
+                            hasLeftBefore = true;
+                        }
+                    }
+                }
+            }
+        }
 
         // starting finding matches for S
         vector<int> left_matches = viterbi(S, left_candidates, true);
@@ -671,6 +703,18 @@ void Mesh::getMatches()
         {
             leftMatch.insert({S[i], left_matches[i]});
             rightMatch.insert({S[i], right_matches[i]});
+
+            // ========= populate current matches
+            if (currentMatches.contains(left_matches[i])) {
+                currentMatches.at(left_matches[i]).push_back(S[i]);
+            }else {
+                currentMatches.insert({left_matches[i], {S[i]}});
+            }
+            if (currentMatches.contains(right_matches[i])) {
+                currentMatches.at(right_matches[i]).push_back(S[i]);
+            }else {
+                currentMatches.insert({right_matches[i], {S[i]}});
+            }
         }
     }
 }

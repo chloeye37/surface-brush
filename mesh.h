@@ -65,6 +65,7 @@ private:
 
     unordered_map<int, int> leftMatch; // if the value is -1 then it doesn't have a match
     unordered_map<int, int> rightMatch;
+    unordered_map<int, vector<int>> currentMatches; // map from vertex A to a list of vertices that have A as their match (either left or right)
 
     vector<Vertex *> _vertices;
     vector<vector<int>> _lines;
