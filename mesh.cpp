@@ -98,52 +98,6 @@ void Mesh::saveToFile()
 
 void Mesh::debugSaveToFile()
 {
-    // take in only 1st vertex and its candidates (left or right or both or none)
-    vector<Vertex *> verticesForVisualization;
-    int theOnlyBaseVertexWanted = 50;
-    verticesForVisualization.push_back(this->_vertices[theOnlyBaseVertexWanted]);
-
-    // Ok so now the issue is here
-
-    for (const auto &[baseVertexIndex, otherVertexIndices] : this->leftRestrictedMatchingCandidates)
-    {
-        //        if (theOnlyBaseVertexWanted == -1) {
-        //            theOnlyBaseVertexWanted = baseVertexIndex;
-        //            verticesForVisualization.push_back(this->_vertices[baseVertexIndex]);
-        //        }
-        if (baseVertexIndex != theOnlyBaseVertexWanted)
-            continue;
-        for (const auto &otherVertexIndex : otherVertexIndices)
-        {
-            verticesForVisualization.push_back(this->_vertices[otherVertexIndex]);
-        }
-        break;
-    }
-    for (const auto &[baseVertexIndex, otherVertexIndices] : this->rightRestrictedMatchingCandidates)
-    {
-        //        if (theOnlyBaseVertexWanted == -1) {
-        //            theOnlyBaseVertexWanted = baseVertexIndex;
-        //            verticesForVisualization.push_back(this->_vertices[baseVertexIndex]);
-        //        }
-        if (baseVertexIndex != theOnlyBaseVertexWanted)
-            continue;
-        for (const auto &otherVertexIndex : otherVertexIndices)
-        {
-            verticesForVisualization.push_back(this->_vertices[otherVertexIndex]);
-        }
-        break;
-    }
-
-    // strokes to visualize
-    //    vector<vector<int>> strokesForVisualization;
-    //    strokesForVisualization.push_back(this->_lines[1]);
-    //    if (this->leftDominantStroke != -1) {
-    //        strokesForVisualization.push_back(this->_lines[this->leftDominantStroke]);
-    //    }
-    //    if (this->rightDominantStroke != -1) {
-    //        strokesForVisualization.push_back(this->_lines[this->rightDominantStroke]);
-    //    }
-
     ofstream outStrokeFile;
     outStrokeFile.open(this->settings->outStrokeFile);
 
@@ -182,14 +136,6 @@ void Mesh::debugSaveToFile()
             }
         }
     }
-    //    for (size_t i = 0; i < strokesForVisualization.size(); i++)
-    //    {
-    //        const vector<int> &l = strokesForVisualization[i];
-    //        for (size_t j = 0; j < l.size() - 1; j++)
-    //        {
-    //            outStrokeFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
-    //        }
-    //    }
 
     outStrokeFile.close();
 }
@@ -843,17 +789,23 @@ bool Mesh::doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSa
 }
 
 // can optimize, by "caching" results
+// return -1 if:
+//  - matching frequency < 30%
+//  - there is no pair of consecutive vertices on S that match a pair of consecutive vertices on T
 int Mesh::calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool leftside)
 {
     int baseCount = 0; // how many of base stroke's vertices got matched
 
     vector<int> baseStroke = this->_lines[baseStrokeIndex];
     vector<int> otherStroke = this->_lines[otherStrokeIndex];
+
+    bool isConsecutivePair = false; // for 2nd returning -1 condition
+    int prevBaseVertexIndex = -1; // index in stroke; for 2nd returning -1 condition
+
     for (int i = 0; i < baseStroke.size(); i++)
     {
         int baseVertex = baseStroke[i];
         bool isEverMatched = false;
-
         for (int j = 0; j < otherStroke.size(); j++)
         {
             int otherVertex = otherStroke[j];
@@ -880,13 +832,33 @@ int Mesh::calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool le
                 unordered_set<int> matches = validVertexVertexMatch.at(baseVertex).at(otherStrokeIndex);
                 matches.insert(otherVertex);
                 this->validVertexVertexMatch[baseVertex][otherStrokeIndex] = matches;
+
+                // if we have not found any consecutive pair yet!
+                // and baseVertex is not the first vertex on stroke
+                // and prevVertex actually has any matches
+                int prevBaseVertex = baseStroke[prevBaseVertexIndex];
+                if (!isConsecutivePair && prevBaseVertexIndex != -1 && this->validVertexVertexMatch.contains(prevBaseVertex) && this->validVertexVertexMatch.at(prevBaseVertex).contains(otherStrokeIndex)) {
+                    bool isBaseConsecutive = (i - prevBaseVertexIndex == 1);
+                    unordered_set<int> prevBaseVertexMatches = this->validVertexVertexMatch.at(prevBaseVertex).at(otherStrokeIndex);
+                    // this line below is saying:
+                    // does the previous base vertex match with a consecutive neighbor of otherVertex?
+                    bool isOtherConsecutive = prevBaseVertexMatches.contains(otherVertex - 1) || prevBaseVertexMatches.contains(otherVertex + 1);
+
+                    isConsecutivePair = isBaseConsecutive && isOtherConsecutive;
+                }
             }
         }
         if (isEverMatched)
         {
             baseCount++;
         }
+
+        prevBaseVertexIndex = i;
     }
+
+    float matchingFrequency = ((float)baseCount / (float)baseStroke.size()) > 0.3;
+
+    baseCount = (matchingFrequency && isConsecutivePair) ? baseCount : -1;
 
     return baseCount;
 }
