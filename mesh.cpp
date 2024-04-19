@@ -126,6 +126,8 @@ void Mesh::debugSaveToFile()
             if (leftMatch.at(i) != -1)
             {
                 outStrokeFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
+                //Let's make a triangle between this and the next one.
+                //Is the next vertex on the same stroke?
             }
         }
         if (rightMatch.contains(i))
@@ -135,6 +137,48 @@ void Mesh::debugSaveToFile()
                 outStrokeFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
             }
         }
+    }
+
+    //Tentatively create some faces based on strokes
+    for(int i = 0; i < _lines.size(); i++){
+        //Go through the stroke
+        std::vector<int> currstroke = _lines[i];
+        for(int j = 0; j < currstroke.size(); j++){
+            //Go through each vertex
+            int pi = currstroke[j];
+            //Check if the next vertex even exists
+            if(j < currstroke.size()-1){
+                if(leftMatch.contains(pi) && leftMatch.contains(pi+1)){
+                    int qi = leftMatch.at(pi);
+                    int qn = leftMatch.at(pi+1);
+                    if((qi != -1)&&(qn != -1)){
+                        //Both this and the next vertex have matches.
+                        std::vector<Vector3i> outtriangles = triangulatePair(pi,qi,pi+1,qn);
+                        for(int k = 0; k < outtriangles.size(); k ++){
+                            _faces.push_back(outtriangles[k]);
+                        }
+                    }
+                }
+                if(rightMatch.contains(pi) && rightMatch.contains(pi+1)){
+                    int qi = rightMatch.at(pi);
+                    int qn = rightMatch.at(pi+1);
+                    if((qi != -1)&&(qn != -1)){
+                        //Both this and the next vertex have matches.
+                        std::vector<Vector3i> outtriangles = triangulatePair(pi,qi,pi+1,qn);
+                        for(int k = 0; k < outtriangles.size(); k ++){
+                            _faces.push_back(outtriangles[k]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Write faces (MESH ONLY)
+    for (size_t i = 0; i < _faces.size(); i++)
+    {
+        const Vector3i &f = _faces[i];
+        outStrokeFile << "f " << (f[0] + 1) << " " << (f[1] + 1) << " " << (f[2] + 1) << endl;
     }
 
     outStrokeFile.close();
@@ -775,6 +819,108 @@ bool areVerticesImmediateNeighbors(int pIndex, int qIndex, vector<int> stroke)
     }
     return false;
 }
+
+/**
+ * @brief Mesh::intabs
+ * @param x
+ * @return the absolute value of x
+ */
+int intabs(int x){
+    if(x<0){
+        return -x;
+    }
+    return x;
+}
+
+/**
+ * @brief Mesh::getnorm
+ * @param p0
+ * @param p1
+ * @param p2
+ * @return the normal of the plane formed by the three points
+ */
+Vector3f getnorm(Vector3f p0, Vector3f p1, Vector3f p2){
+    Vector3f v01 = p1-p0;
+    Vector3f v02 = p2-p0;
+    Vector3f crossed = v01.cross(v02);
+    return crossed/crossed.norm();
+}
+
+/**
+ * @brief Mesh::triangulatePair
+ * @param pi
+ * @param qi
+ * @param pn
+ * @param qn
+ * @return a list of triangles triangulating between the edges pi pn and qi qn
+ */
+std::vector<Vector3i> Mesh::triangulatePair(int pi,int qi,int pn, int qn){
+    //So in practice, we want to push these new triangles back.
+    //We need to be able to go through each pair of strokes, and iterate through all consecutive matches.
+
+    std::vector<Vector3i> triangles = std::vector<Vector3i>();
+    //qi and qi1 belong to the same stroke by default. Their difference should just be the number of points in between.
+    //Check if qi and qn are the same
+    if(qi == qn){
+        triangles.push_back(Vector3i(pi,pn,qi));
+    }
+    //Check if pi and pn are the same
+    if(pi == pn){
+        triangles.push_back(Vector3i(pi,qn,qi));
+    }
+    else{
+        //qi and qn are not the same
+        int n_midpoints = intabs(qn-qi)-1;
+
+        if(n_midpoints == 0){
+            //qi and qn are consecutive
+
+            //Get positions of all points
+            Vector3f pip = _vertices[pi]->position;
+            Vector3f qip = _vertices[qi]->position;
+            Vector3f pnp = _vertices[pn]->position;
+            Vector3f qnp = _vertices[qn]->position;
+
+            //Try both triangulations. Choose the one with a larger dihedral angle.
+            Vector3f normuR = getnorm(pip,qip,qnp);
+            Vector3f normbL = getnorm(pip,qnp,pnp);
+            //If the dot product of the two is negative, then we have a twist somewhere and these pairs are wrong
+            float angletlbr = acos(normuR.dot(normbL));
+
+            Vector3f normbR = getnorm(pnp,qip,qnp);
+            Vector3f normuL = getnorm(pip,qip,pnp);
+            float angletrbl = acos(normbR.dot(normuL));
+
+            if(angletlbr > angletrbl){
+                //Go for the original triangulation.
+                triangles.push_back(Vector3i(pi,qi,qn));
+                triangles.push_back(Vector3i(pi,qn,pn));
+            }
+            else{
+                //Use the alternative triangulation
+                triangles.push_back(Vector3i(pn,qi,qn));
+                triangles.push_back(Vector3i(pi,qi,pn));
+            }
+        }
+        else{
+            //There are a nonzero number of midpoints
+            //For now, we choose a naive solution for triangulating. Splice along the approximate midpoint of the segment connecting qi to qn.
+            int i_mid = static_cast<int>(floor(0.5*(static_cast<float>(qi)+static_cast<float>(qn))));
+            //Add above triangles
+            for(int i = qi; i < i_mid; i++){
+                triangles.push_back(Vector3i(pi,i+1,i));
+            }
+            //Add middle triangle
+            triangles.push_back(Vector3i(pi,pn,i_mid));
+            //Add below triangles
+            for(int i = i_mid; i < qn; i++){
+                triangles.push_back(Vector3i(pn,i+1,i));
+            }
+        }
+    }
+    return triangles;
+}
+
 
 /**
  * @brief Mesh::doTwoVerticesMatch

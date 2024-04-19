@@ -47,6 +47,7 @@ public:
     void cleanUp(); // perform any cleaning up at the end
     vector<vector<int>> getLines();
     vector<int> viterbi(vector<int> S, vector<vector<int>> candidates, bool leftSide); // for testing purposes, moved into public
+
     void getMatches();
 
 private:
@@ -62,6 +63,8 @@ private:
     //          other vertex index
     unordered_map<int, unordered_set<int>> leftRestrictedMatchingCandidates;
     unordered_map<int, unordered_set<int>> rightRestrictedMatchingCandidates;
+
+    std::vector<Vector3i> triangulatePair(int pi,int qi,int pn, int qn);
 
     unordered_map<int, int> leftMatch; // if the value is -1 then it doesn't have a match
     unordered_map<int, int> rightMatch;
