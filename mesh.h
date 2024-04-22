@@ -64,6 +64,8 @@ private:
     unordered_map<int, unordered_set<int>> leftRestrictedMatchingCandidates;
     unordered_map<int, unordered_set<int>> rightRestrictedMatchingCandidates;
 
+    unordered_map<int,int> vertsToStrokes;
+
     std::vector<Vector3i> triangulatePair(int pi,int qi,int pn, int qn);
 
     unordered_map<int, int> leftMatch; // if the value is -1 then it doesn't have a match

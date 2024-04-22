@@ -96,10 +96,55 @@ void Mesh::saveToFile()
     outMeshFile.close();
 }
 
+Vector3i sortvec(Vector3i vec){
+    int a = vec[0];
+    int b = vec[1];
+    int c = vec[2];
+    if(a<=b && a<=c){
+        if(b < c){
+            return Vector3i(a,b,c);
+        }
+        else{
+            return Vector3i(a,c,b);
+        }
+    }
+    else if(b <= a && b <= c){
+        if(a < c){
+            return Vector3i(b,a,c);
+        }
+        else{
+            return Vector3i(b,c,a);
+        }
+    }
+    else{
+        if(a < b){
+            return Vector3i(c,a,b);
+        }
+        else{
+            return Vector3i(c,b,a);
+        }
+    }
+}
+
+int tohash(Vector3i k, int N){
+    Vector3i sortedvec = sortvec(k);
+    return sortedvec[0]*N*N + sortedvec[1]*N + sortedvec[2];
+}
+
+int dig(int x, int i, int N){
+    return ((x%static_cast<int>(pow(N,i+1)))-(x%static_cast<int>(pow(N,i))))/pow(N,i);
+}
+
+Vector3i fromhash(int x, int N){
+    return Vector3i(dig(x,2,N),  dig(x,1,N), dig(x,0,N));
+}
+
 void Mesh::debugSaveToFile()
 {
     ofstream outStrokeFile;
     outStrokeFile.open(this->settings->outStrokeFile);
+
+    unordered_set<int> trihashes;
 
     // Write vertices
     for (size_t i = 0; i < _vertices.size(); i++)
@@ -126,8 +171,6 @@ void Mesh::debugSaveToFile()
             if (leftMatch.at(i) != -1)
             {
                 outStrokeFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
-                //Let's make a triangle between this and the next one.
-                //Is the next vertex on the same stroke?
             }
         }
         if (rightMatch.contains(i))
@@ -147,26 +190,42 @@ void Mesh::debugSaveToFile()
             //Go through each vertex
             int pi = currstroke[j];
             //Check if the next vertex even exists
+            // if(vertsToStrokes.at(pi) == vertsToStrokes.at(pi+1)){
             if(j < currstroke.size()-1){
                 if(leftMatch.contains(pi) && leftMatch.contains(pi+1)){
                     int qi = leftMatch.at(pi);
+                    //Depending on what is closer, qn should be the opposite
                     int qn = leftMatch.at(pi+1);
-                    if((qi != -1)&&(qn != -1)){
+                    //I still think it's an issue with your map. Maybe consider checking stroke membership some other way.
+                    if((qi >= 0)&&(qn >= 0)){
+                    //Ok so your vertstostrokes thing is broken FYI
+                    // if((qi >= 0)&&(qn >= 0)){
                         //Both this and the next vertex have matches.
                         std::vector<Vector3i> outtriangles = triangulatePair(pi,qi,pi+1,qn);
                         for(int k = 0; k < outtriangles.size(); k ++){
-                            _faces.push_back(outtriangles[k]);
+                            //Check if the triangle exists already
+                            if(!trihashes.contains(tohash(outtriangles[k],_vertices.size()))){
+                            // if(true){
+                                _faces.push_back(outtriangles[k]);
+                            }
                         }
                     }
                 }
+                //TODO: Check if Qi and Qn belong to the same stroke! Could make a map for this, from vertices to their stroke.
                 if(rightMatch.contains(pi) && rightMatch.contains(pi+1)){
                     int qi = rightMatch.at(pi);
                     int qn = rightMatch.at(pi+1);
-                    if((qi != -1)&&(qn != -1)){
+                    if((qi >= 0)&&(qn >= 0)){
+                    // if((qi >= 0)&&(qn >= 0)){
                         //Both this and the next vertex have matches.
                         std::vector<Vector3i> outtriangles = triangulatePair(pi,qi,pi+1,qn);
+
                         for(int k = 0; k < outtriangles.size(); k ++){
-                            _faces.push_back(outtriangles[k]);
+                            //Check if the triangle exists already
+                            if(!trihashes.contains(tohash(outtriangles[k],_vertices.size()))){
+                            // if(true){
+                                _faces.push_back(outtriangles[k]);
+                            }
                         }
                     }
                 }
@@ -461,18 +520,26 @@ vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections)
 
     std::vector<std::vector<int>> polylines = std::vector<std::vector<int>>();
     int index = 0;
+    int strokedex = 0;
     while (index < sortedconns.size())
     {
+        //Add vertices to the vertsToStrokes map!
         vector<int> currentpoly = std::vector<int>();
         currentpoly.push_back(sortedconns[index][0]);
         currentpoly.push_back(sortedconns[index][1]);
+
+        vertsToStrokes.emplace(sortedconns[index][0], strokedex);
+        vertsToStrokes.emplace(sortedconns[index][1], strokedex);
+
         index = index + 1;
         while (sortedconns[index][0] == currentpoly[currentpoly.size() - 1])
         {
             currentpoly.push_back(sortedconns[index][1]);
+            vertsToStrokes.emplace(sortedconns[index][1], strokedex);
             index = index + 1;
         }
         polylines.push_back(currentpoly);
+        strokedex = strokedex + 1;
     }
     return polylines;
 }
@@ -865,7 +932,7 @@ std::vector<Vector3i> Mesh::triangulatePair(int pi,int qi,int pn, int qn){
         triangles.push_back(Vector3i(pi,pn,qi));
     }
     //Check if pi and pn are the same
-    if(pi == pn){
+    else if(pi == pn){
         triangles.push_back(Vector3i(pi,qn,qi));
     }
     else{
@@ -882,40 +949,54 @@ std::vector<Vector3i> Mesh::triangulatePair(int pi,int qi,int pn, int qn){
             Vector3f qnp = _vertices[qn]->position;
 
             //Try both triangulations. Choose the one with a larger dihedral angle.
-            Vector3f normuR = getnorm(pip,qip,qnp);
-            Vector3f normbL = getnorm(pip,qnp,pnp);
-            //If the dot product of the two is negative, then we have a twist somewhere and these pairs are wrong
-            float angletlbr = acos(normuR.dot(normbL));
-
-            Vector3f normbR = getnorm(pnp,qip,qnp);
-            Vector3f normuL = getnorm(pip,qip,pnp);
-            float angletrbl = acos(normbR.dot(normuL));
-
-            if(angletlbr > angletrbl){
-                //Go for the original triangulation.
-                triangles.push_back(Vector3i(pi,qi,qn));
-                triangles.push_back(Vector3i(pi,qn,pn));
+            //Edit: Dihedral angle might not be great. Just do the one with the smaller diagonal difference.
+            if((pip-qnp).norm()<(qip-pnp).norm()){
+                    triangles.push_back(Vector3i(pi,pn,qn));
+                    triangles.push_back(Vector3i(pi,qi,qn));
             }
             else{
-                //Use the alternative triangulation
-                triangles.push_back(Vector3i(pn,qi,qn));
-                triangles.push_back(Vector3i(pi,qi,pn));
+                triangles.push_back(Vector3i(qi,qn,pn));
+                triangles.push_back(Vector3i(qi,pi,pn));
             }
         }
-        else{
-            //There are a nonzero number of midpoints
-            //For now, we choose a naive solution for triangulating. Splice along the approximate midpoint of the segment connecting qi to qn.
+        //This is a completely arbitrary bound that seemed to help things.
+        // else if(intabs(qi-qn) < 20){
+        else if(vertsToStrokes.at(qi) == vertsToStrokes.at(qn)){
+            // //There are a nonzero number of midpoints
+            // //For now, we choose a naive solution for triangulating. Splice along the approximate midpoint of the segment connecting qi to qn.
             int i_mid = static_cast<int>(floor(0.5*(static_cast<float>(qi)+static_cast<float>(qn))));
-            //Add above triangles
-            for(int i = qi; i < i_mid; i++){
+
+            // std::cout << "[ " + std::to_string(qi) + "," + std::to_string(i_mid) + ", " + std::to_string(qn) + "]: " + std::to_string(vertsToStrokes.at(qi)) + " and " + std::to_string(vertsToStrokes.at(qn)) << std::endl;
+
+            int ibegin;
+            int iend;
+            if(qi < qn){
+                ibegin = qi;
+                iend = qn;
+            }
+            else{
+                ibegin = qn;
+                iend = qi;
+            }
+
+            // //Add above triangles
+            for(int i = ibegin; i < i_mid; i++){
                 triangles.push_back(Vector3i(pi,i+1,i));
             }
             //Add middle triangle
+            //i_mid should be between qi and qn
             triangles.push_back(Vector3i(pi,pn,i_mid));
-            //Add below triangles
-            for(int i = i_mid; i < qn; i++){
+            //I HAVE A FEELING QI AND QN ARE NOT ON THE SAME STROKE
+
+            // Add below triangles
+            for(int i = i_mid; i < iend; i++){
                 triangles.push_back(Vector3i(pn,i+1,i));
             }
+        }
+        else{
+            std::cout << "qi: " + std::to_string(qi) + ",  qn: " + std::to_string(qn) << std::endl;
+            std::cout << "pi: " + std::to_string(pi) + ",  pn: " + std::to_string(pn) << std::endl;
+            std::cout << "qi stroke: " + std::to_string(vertsToStrokes.at(qi)) + ",  qn stroke: " + std::to_string(vertsToStrokes.at(qn)) << std::endl;
         }
     }
     return triangles;
