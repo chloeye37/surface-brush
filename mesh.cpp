@@ -146,8 +146,6 @@ void Mesh::debugSaveToFile()
     ofstream outMeshFile;
     outMeshFile.open(this->settings->outMeshFile);
 
-    unordered_set<int> trihashes;
-
     // Write vertices
     for (size_t i = 0; i < _vertices.size(); i++)
     {
@@ -165,9 +163,7 @@ void Mesh::debugSaveToFile()
         {
             outStrokeFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
             outMeshFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
-            std::cout << std::to_string(l[j]) << std::endl;
         }
-        std::cout << std::to_string(l[l.size()-1]) << std::endl;
     }
     // Write a line segment if there is a match between two points
     for (size_t i = 0; i < _vertices.size(); i++)
@@ -186,55 +182,6 @@ void Mesh::debugSaveToFile()
             {
                 outStrokeFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
                 outMeshFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
-            }
-        }
-    }
-
-    //Tentatively create some faces based on strokes
-    for(int i = 0; i < _lines.size(); i++){
-        //Go through the stroke
-        std::vector<int> currstroke = _lines[i];
-        for(int j = 0; j < currstroke.size(); j++){
-            //Go through each vertex
-            int pi = currstroke[j];
-            //Check if the next vertex even exists
-            // if(vertsToStrokes.at(pi) == vertsToStrokes.at(pi+1)){
-            if(j < currstroke.size()-1){
-                if(leftMatch.contains(pi) && leftMatch.contains(pi+1)){
-                    int qi = leftMatch.at(pi);
-                    int qn = leftMatch.at(pi+1);
-                    //I still think it's an issue with your map. Maybe consider checking stroke membership some other way.
-                    if((qi >= 0)&&(qn >= 0) && (vertsToStrokes.at(qi) == vertsToStrokes.at(qn))){
-                        //Both this and the next vertex have matches.
-                        std::vector<Vector3i> outtriangles = triangulatePair(pi,qi,pi+1,qn);
-                        for(int k = 0; k < outtriangles.size(); k ++){
-                            //Check if the triangle exists already
-                            int trihash = tohash(outtriangles[k],_vertices.size());
-                            if(!trihashes.contains(trihash)){
-                                _faces.push_back(outtriangles[k]);
-                                trihashes.insert(trihash);
-                            }
-                        }
-                    }
-                }
-                //TODO: Check if Qi and Qn belong to the same stroke! Could make a map for this, from vertices to their stroke.
-                if(rightMatch.contains(pi) && rightMatch.contains(pi+1)){
-                    int qi = rightMatch.at(pi);
-                    int qn = rightMatch.at(pi+1);
-                    if((qi >= 0)&&(qn >= 0) && (vertsToStrokes.at(qi) == vertsToStrokes.at(qn))){
-                        //Both this and the next vertex have matches.
-                        std::vector<Vector3i> outtriangles = triangulatePair(pi,qi,pi+1,qn);
-                        for(int k = 0; k < outtriangles.size(); k ++){
-                            //Check if the triangle exists already
-                            int trihash = tohash(outtriangles[k],_vertices.size());
-                            if(!trihashes.contains(trihash)){
-                            // if(true){
-                                _faces.push_back(outtriangles[k]);
-                                trihashes.insert(trihash);
-                            }
-                        }
-                    }
-                }
             }
         }
     }
@@ -494,6 +441,52 @@ void Mesh::getRestrictedMatchingCandidates()
                     unordered_set<int> rightMatches = this->rightRestrictedMatchingCandidates.at(vertexIndex);
                     rightMatches.insert(vertexIndex2);
                     this->rightRestrictedMatchingCandidates[vertexIndex] = rightMatches;
+                }
+            }
+        }
+    }
+}
+
+void Mesh::meshStripGeneration() {
+    unordered_set<int> trihashes;
+
+    for(int i = 0; i < _lines.size(); i++){
+        //Go through the stroke
+        std::vector<int> currstroke = _lines[i];
+        for(int j = 0; j < currstroke.size() - 1; j++){
+            //Go through each vertex
+            int pi = currstroke[j];
+            //Check if the next vertex even exists
+            if(leftMatch.contains(pi) && leftMatch.contains(pi+1)){
+                int qi = leftMatch.at(pi);
+                int qn = leftMatch.at(pi+1);
+                if((qi >= 0)&&(qn >= 0) && (vertsToStrokes.at(qi) == vertsToStrokes.at(qn))){
+                    //Both this and the next vertex have matches.
+                    std::vector<Vector3i> outtriangles = triangulatePair(pi,qi,pi+1,qn);
+                    for(int k = 0; k < outtriangles.size(); k ++){
+                        //Check if the triangle exists already
+                        int trihash = tohash(outtriangles[k],_vertices.size());
+                        if(!trihashes.contains(trihash)){
+                            _faces.push_back(outtriangles[k]);
+                            trihashes.insert(trihash);
+                        }
+                    }
+                }
+            }
+            if(rightMatch.contains(pi) && rightMatch.contains(pi+1)){
+                int qi = rightMatch.at(pi);
+                int qn = rightMatch.at(pi+1);
+                if((qi >= 0)&&(qn >= 0) && (vertsToStrokes.at(qi) == vertsToStrokes.at(qn))){
+                    //Both this and the next vertex have matches.
+                    std::vector<Vector3i> outtriangles = triangulatePair(pi,qi,pi+1,qn);
+                    for(int k = 0; k < outtriangles.size(); k ++){
+                        //Check if the triangle exists already
+                        int trihash = tohash(outtriangles[k],_vertices.size());
+                        if(!trihashes.contains(trihash)){
+                            _faces.push_back(outtriangles[k]);
+                            trihashes.insert(trihash);
+                        }
+                    }
                 }
             }
         }
