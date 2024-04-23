@@ -143,6 +143,8 @@ void Mesh::debugSaveToFile()
 {
     ofstream outStrokeFile;
     outStrokeFile.open(this->settings->outStrokeFile);
+    ofstream outMeshFile;
+    outMeshFile.open(this->settings->outMeshFile);
 
     unordered_set<int> trihashes;
 
@@ -151,6 +153,7 @@ void Mesh::debugSaveToFile()
     {
         Vertex *v = _vertices[i];
         outStrokeFile << "v " << v->position[0] << " " << v->position[1] << " " << v->position[2] << endl;
+        outMeshFile << "v " << v->position[0] << " " << v->position[1] << " " << v->position[2] << endl;
     }
 
     // Write strokes
@@ -161,7 +164,10 @@ void Mesh::debugSaveToFile()
         for (size_t j = 0; j < l.size() - 1; j++)
         {
             outStrokeFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
+            outMeshFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
+            std::cout << std::to_string(l[j]) << std::endl;
         }
+        std::cout << std::to_string(l[l.size()-1]) << std::endl;
     }
     // Write a line segment if there is a match between two points
     for (size_t i = 0; i < _vertices.size(); i++)
@@ -171,6 +177,7 @@ void Mesh::debugSaveToFile()
             if (leftMatch.at(i) != -1)
             {
                 outStrokeFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
+                outMeshFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
             }
         }
         if (rightMatch.contains(i))
@@ -178,6 +185,7 @@ void Mesh::debugSaveToFile()
             if (rightMatch.at(i) != -1)
             {
                 outStrokeFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
+                outMeshFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
             }
         }
     }
@@ -194,19 +202,17 @@ void Mesh::debugSaveToFile()
             if(j < currstroke.size()-1){
                 if(leftMatch.contains(pi) && leftMatch.contains(pi+1)){
                     int qi = leftMatch.at(pi);
-                    //Depending on what is closer, qn should be the opposite
                     int qn = leftMatch.at(pi+1);
                     //I still think it's an issue with your map. Maybe consider checking stroke membership some other way.
-                    if((qi >= 0)&&(qn >= 0)){
-                    //Ok so your vertstostrokes thing is broken FYI
-                    // if((qi >= 0)&&(qn >= 0)){
+                    if((qi >= 0)&&(qn >= 0) && (vertsToStrokes.at(qi) == vertsToStrokes.at(qn))){
                         //Both this and the next vertex have matches.
                         std::vector<Vector3i> outtriangles = triangulatePair(pi,qi,pi+1,qn);
                         for(int k = 0; k < outtriangles.size(); k ++){
                             //Check if the triangle exists already
-                            if(!trihashes.contains(tohash(outtriangles[k],_vertices.size()))){
-                            // if(true){
+                            int trihash = tohash(outtriangles[k],_vertices.size());
+                            if(!trihashes.contains(trihash)){
                                 _faces.push_back(outtriangles[k]);
+                                trihashes.insert(trihash);
                             }
                         }
                     }
@@ -215,16 +221,16 @@ void Mesh::debugSaveToFile()
                 if(rightMatch.contains(pi) && rightMatch.contains(pi+1)){
                     int qi = rightMatch.at(pi);
                     int qn = rightMatch.at(pi+1);
-                    if((qi >= 0)&&(qn >= 0)){
-                    // if((qi >= 0)&&(qn >= 0)){
+                    if((qi >= 0)&&(qn >= 0) && (vertsToStrokes.at(qi) == vertsToStrokes.at(qn))){
                         //Both this and the next vertex have matches.
                         std::vector<Vector3i> outtriangles = triangulatePair(pi,qi,pi+1,qn);
-
                         for(int k = 0; k < outtriangles.size(); k ++){
                             //Check if the triangle exists already
-                            if(!trihashes.contains(tohash(outtriangles[k],_vertices.size()))){
+                            int trihash = tohash(outtriangles[k],_vertices.size());
+                            if(!trihashes.contains(trihash)){
                             // if(true){
                                 _faces.push_back(outtriangles[k]);
+                                trihashes.insert(trihash);
                             }
                         }
                     }
@@ -237,10 +243,11 @@ void Mesh::debugSaveToFile()
     for (size_t i = 0; i < _faces.size(); i++)
     {
         const Vector3i &f = _faces[i];
-        outStrokeFile << "f " << (f[0] + 1) << " " << (f[1] + 1) << " " << (f[2] + 1) << endl;
+        outMeshFile << "f " << (f[0] + 1) << " " << (f[1] + 1) << " " << (f[2] + 1) << endl;
     }
 
     outStrokeFile.close();
+    outMeshFile.close();
 }
 
 // Preprocess the lines: check if the strokes have an abrupt direction change (angle of 45◦ or less between consecutive tangents)
@@ -373,6 +380,13 @@ void Mesh::preprocessLines()
         final_lines.push_back(final_line);
     }
     this->_lines = final_lines;
+
+    //NEW NEW NEW NEW
+    for(int i = 0; i < this->_lines.size(); i++){
+        for(int j = 0; j < (this->_lines[i]).size(); j++){
+            vertsToStrokes.emplace(this->_lines[i][j], i);
+        }
+    }
 }
 
 void Mesh::getRestrictedMatchingCandidates()
@@ -528,19 +542,16 @@ vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections)
         currentpoly.push_back(sortedconns[index][0]);
         currentpoly.push_back(sortedconns[index][1]);
 
-        vertsToStrokes.emplace(sortedconns[index][0], strokedex);
-        vertsToStrokes.emplace(sortedconns[index][1], strokedex);
-
         index = index + 1;
         while (sortedconns[index][0] == currentpoly[currentpoly.size() - 1])
         {
             currentpoly.push_back(sortedconns[index][1]);
-            vertsToStrokes.emplace(sortedconns[index][1], strokedex);
             index = index + 1;
         }
         polylines.push_back(currentpoly);
         strokedex = strokedex + 1;
     }
+
     return polylines;
 }
 
@@ -959,9 +970,7 @@ std::vector<Vector3i> Mesh::triangulatePair(int pi,int qi,int pn, int qn){
                 triangles.push_back(Vector3i(qi,pi,pn));
             }
         }
-        //This is a completely arbitrary bound that seemed to help things.
-        // else if(intabs(qi-qn) < 20){
-        else if(vertsToStrokes.at(qi) == vertsToStrokes.at(qn)){
+        else{
             // //There are a nonzero number of midpoints
             // //For now, we choose a naive solution for triangulating. Splice along the approximate midpoint of the segment connecting qi to qn.
             int i_mid = static_cast<int>(floor(0.5*(static_cast<float>(qi)+static_cast<float>(qn))));
@@ -992,11 +1001,6 @@ std::vector<Vector3i> Mesh::triangulatePair(int pi,int qi,int pn, int qn){
             for(int i = i_mid; i < iend; i++){
                 triangles.push_back(Vector3i(pn,i+1,i));
             }
-        }
-        else{
-            std::cout << "qi: " + std::to_string(qi) + ",  qn: " + std::to_string(qn) << std::endl;
-            std::cout << "pi: " + std::to_string(pi) + ",  pn: " + std::to_string(pn) << std::endl;
-            std::cout << "qi stroke: " + std::to_string(vertsToStrokes.at(qi)) + ",  qn stroke: " + std::to_string(vertsToStrokes.at(qn)) << std::endl;
         }
     }
     return triangles;
