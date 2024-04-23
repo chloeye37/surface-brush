@@ -41,19 +41,26 @@ public:
     void saveToFile();
     void debugSaveToFile();
 
+    // the main algo
+    void getMatches();
     void preprocessLines();
     void getRestrictedMatchingCandidates();
+    void meshStripGeneration();
 
     void cleanUp(); // perform any cleaning up at the end
-    vector<vector<int>> getLines();
-    vector<int> viterbi(vector<int> S, vector<vector<int>> candidates, bool leftSide); // for testing purposes, moved into public
-
-    void getMatches();
 
 private:
     // settings
     Settings *settings;
 
+    // common fields
+    vector<Vertex *> _vertices;
+    vector<vector<int>> _lines;
+    vector<Vector3i> _faces;
+    // ------- match computation
+    unordered_map<int, int> leftMatch; // if the value is -1 then it doesn't have a match
+    unordered_map<int, int> rightMatch;
+    unordered_map<int, vector<int>> currentMatches; // map from vertex A to a list of vertices that have A as their match (either left or right)
     // ------- restricted matching
     // base vertex index : {
     //          other stroke index : {
@@ -63,16 +70,8 @@ private:
     //          other vertex index
     unordered_map<int, unordered_set<int>> leftRestrictedMatchingCandidates;
     unordered_map<int, unordered_set<int>> rightRestrictedMatchingCandidates;
-
-    std::vector<Vector3i> triangulatePair(int pi,int qi,int pn, int qn);
-
-    unordered_map<int, int> leftMatch; // if the value is -1 then it doesn't have a match
-    unordered_map<int, int> rightMatch;
-    unordered_map<int, vector<int>> currentMatches; // map from vertex A to a list of vertices that have A as their match (either left or right)
-
-    vector<Vertex *> _vertices;
-    vector<vector<int>> _lines;
-    vector<Vector3i> _faces;
+    // ------- mesh strip generation
+    unordered_map<int,int> vertsToStrokes;
 
     // helpers
     vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
@@ -82,9 +81,12 @@ private:
     float vertexVertexScore(Vertex *P, Vertex *Q, bool leftside);
     float persistenceScore(Vertex *Pi, Vertex *Qi, Vertex *Pi_1, Vertex *Qi_1); // Qi is the match of Pi, Qi_1 is the match of Pi_1; Pi and Pi_1 are consecutive vertices
     float computeM(int pi, int qi, int pi_1, int qi_1, bool leftSide);
-
+    vector<vector<int>> getLines();
+    vector<int> viterbi(vector<int> S, vector<vector<int>> candidates, bool leftSide); // for testing purposes, moved into public
     // ------- restricted matching
     pair<vector<int>, vector<int>> splitStrokesIntoLeftRight(int baseStrokeIndex);
     bool doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSameStroke, int strokeIndex);
     int calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool leftside);
+    // ------- mesh strip generation
+    std::vector<Vector3i> triangulatePair(int pi,int qi,int pn, int qn);
 };

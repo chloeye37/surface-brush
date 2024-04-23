@@ -60,27 +60,23 @@ int main(int argc, char *argv[])
     Mesh m;
     m.loadFromFile();
 
-    // // Start timing
-    // auto t0 = std::chrono::high_resolution_clock::now();
+    // Start timing
+    auto t0 = std::chrono::high_resolution_clock::now();
 
-    // TODO: our project code goes here
+    // Main algo
     m.preprocessLines();
     std::cout << "Strips preprocessed." << std::endl;
     m.getRestrictedMatchingCandidates();
     std::cout << "Got restricted matching candidates." << std::endl;
-
-    // ---------- Test Viterbi ---------------------------
-    // now unordered_map<int, unordered_set<int>> leftRestrictedMatchingCandidates is populated
     m.getMatches();
     std::cout << "Finished matching." << std::endl;
-    // now unordered_map<int, int> leftMatch and rightMatch should be populated, -1 means no match
+    m.meshStripGeneration();
+    std::cout << "Generated mesh strips." << std::endl;
 
-    // ---------- Test Viterbi Ends ------------------------
-
-    // // Finish timing
-    // auto t1 = std::chrono::high_resolution_clock::now();
-    // auto duration = duration_cast<std::chrono::milliseconds>(t1 - t0).count();
-    // std::cout << "Execution took " << duration << " milliseconds." << std::endl;
+    // Finish timing
+    auto t1 = std::chrono::high_resolution_clock::now();
+    auto duration = duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+    std::cout << "Execution took " << duration << " milliseconds." << std::endl;
 
     // Save
     //    m.saveToFile(outStrokeFile.toStdString(), outMeshFile.toStdString());
