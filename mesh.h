@@ -22,6 +22,7 @@ typedef struct Vertex
     bool isActive;    // records whether the corresponding vertex has been deleted or not: if isActive is false then it has been deleted
     Vector3f tangent; // tangent vector
     Vector3f normal;  // normal vector
+    Vector3f binormal; // binormal vector
     float strokeWidth;
     // constructor with all fields
     Vertex(Vector3f _position, bool _isActive, Vector3f _tangent, Vector3f _normal, float _strokeWidth)
@@ -72,11 +73,14 @@ private:
     unordered_map<int, unordered_set<int>> rightRestrictedMatchingCandidates;
     // ------- mesh strip generation
     unordered_map<int,int> vertsToStrokes;
+    // ------- Section 5.4: Manifold consolidation
+    unordered_map<std::pair<int, int>, vector<Vector3i>> edgeToTriangles;
+    unordered_map<int, vector<Vector3i>> vertexToTriangles;
 
     // helpers
     vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
     // ------- preprocessing
-    void calculateTangents(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals);
+    void calculateTangentsAndBinormals(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals);
     // ------- match computation
     float vertexVertexScore(Vertex *P, Vertex *Q, bool leftside);
     float persistenceScore(Vertex *Pi, Vertex *Qi, Vertex *Pi_1, Vertex *Qi_1); // Qi is the match of Pi, Qi_1 is the match of Pi_1; Pi and Pi_1 are consecutive vertices
@@ -89,4 +93,9 @@ private:
     int calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool leftside);
     // ------- mesh strip generation
     std::vector<Vector3i> triangulatePair(int pi,int qi,int pn, int qn);
+
+    // ------- Section 5.4: Manifold consolidation
+    void populateTriangleMaps();
+    vector<vector<Vector3i>> computeUndecidedTriangles();
+    bool checkOverlap(int v, int v1, int v2, int v3, int v4);
 };
