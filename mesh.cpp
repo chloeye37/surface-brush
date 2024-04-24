@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <array>
+#include <math.h>
 #include <set>
 
 #include <QFileInfo>
@@ -50,7 +51,7 @@ void Mesh::loadFromFile()
         normals.push_back(normalsAndStrokeWidths[i].first);
     }
 
-    calculateTangents(vertices, normals);
+    calculateTangentsAndBinormals(vertices, normals);
 }
 
 void Mesh::saveToFile()
@@ -557,7 +558,183 @@ vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections)
     return polylines;
 }
 
-void Mesh::calculateTangents(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals)
+
+
+// --------------------- Section 5.4 ------------------------
+// --------------------- Get undecided triangle clusters ------------------------
+// A function to create a map that associates each vertex with its list of triangles, and a map that associates every edge with its triangles
+void Mesh::populateTriangleMaps() {
+    for (Vector3i triangle : _faces) {
+        // first populate unordered_map<std::pair<int, int>, Vector3i> edgeToTriangles
+        int v1 = triangle[0]; int v2 = triangle[1]; int v3 = triangle[2];
+        auto pair12 = v1 < v2 ? std::make_pair(v1,v2) : std::make_pair(v2,v1); // edge ordered by smaller vertex -- larger vertex
+        if (edgeToTriangles.contains(pair12)) {
+            edgeToTriangles.at(pair12).push_back(triangle);
+        }else {
+            edgeToTriangles.insert({pair12, {triangle}});
+        }
+        auto pair13 = v1 < v3 ? std::make_pair(v1,v3) : std::make_pair(v3,v1); // edge ordered by smaller vertex -- larger vertex
+        if (edgeToTriangles.contains(pair13)) {
+            edgeToTriangles.at(pair13).push_back(triangle);
+        }else {
+            edgeToTriangles.insert({pair13, {triangle}});
+        }
+        auto pair23 = v3 < v2 ? std::make_pair(v3,v2) : std::make_pair(v2,v3); // edge ordered by smaller vertex -- larger vertex
+        if (edgeToTriangles.contains(pair23)) {
+            edgeToTriangles.at(pair23).push_back(triangle);
+        }else {
+            edgeToTriangles.insert({pair23, {triangle}});
+        }
+
+        // then populate unordered_map<int, Vector3i> vertexToTriangles
+        if (vertexToTriangles.contains(v1)) {
+            vertexToTriangles.at(v1).push_back(triangle);
+        }else {
+            vertexToTriangles.insert({v1, {triangle}});
+        }
+        if (vertexToTriangles.contains(v2)) {
+            vertexToTriangles.at(v2).push_back(triangle);
+        }else {
+            vertexToTriangles.insert({v2, {triangle}});
+        }
+        if (vertexToTriangles.contains(v2)) {
+            vertexToTriangles.at(v2).push_back(triangle);
+        }else {
+            vertexToTriangles.insert({v2, {triangle}});
+        }
+    }
+}
+
+// We have all the triangles (triangles: vector<int> = {v1, v2, v3}), need to identify the incompatible ones
+vector<vector<Vector3i>> Mesh::computeUndecidedTriangles() {
+    vector<vector<Vector3i>> res;
+    std::set<std::pair<int,int>> undecided_edges;
+    std::set<int> undecided_vertices;
+    // Case (1) and (3): look for triangles that share one edge
+    for (auto i = edgeToTriangles.begin(); i != edgeToTriangles.end(); i++) {
+        auto cur_edge = i->first;
+        auto [v1,v2] = i->first;
+        vector<Vector3i> triangles = i->second;
+        // loop through all triangles and check them pairwise
+        for (Vector3i t1 : triangles) {
+            for (Vector3i t2 : triangles) {
+                int v3, v4;
+                // get v3 and v4
+                if (t1[0] != v1 && t1[0] != v2) v3 = t1[0];
+                else if (t1[1] != v1 && t1[1] != v2) v3 = t1[1];
+                else v3 = t1[2];
+                if (t2[0] != v1 && t2[0] != v2) v4 = t2[0];
+                else if (t2[1] != v1 && t2[1] != v2) v4 = t2[1];
+                else v4 = t2[2];
+                // check if v3 and v4 are on different sides of the stroke
+                Vector3f edge = _vertices[v1]->position - _vertices[v2]->position;
+                Vector3f t1edge = _vertices[v3]->position - _vertices[v2]->position;
+                Vector3f t2edge = _vertices[v4]->position - _vertices[v2]->position;
+                if ((t1edge.dot(_vertices[v2]->binormal)) * (t2edge.dot(_vertices[v2]->binormal)) > 0) { // same side
+                    // mark this edge
+                    undecided_edges.insert(cur_edge);
+                }
+                // check if the dihedral angle is less than 45 degrees
+                // https://math.stackexchange.com/questions/47059/how-do-i-calculate-a-dihedral-angle-given-cartesian-coordinates
+                Vector3f b2 = edge;
+                Vector3f b1 = - t1edge;
+                Vector3f b3 = t2edge;
+                Vector3f n1 = b1.cross(b2).normalized();
+                Vector3f n2 = b2.cross(b3).normalized();
+                float x = n1.dot(n2);
+                float y = (n1.cross(b2.normalized())).dot(n2);
+                if (atan2(y,x) * 180 / M_PI < 45) { // less than 45 degrees
+                    undecided_edges.insert(cur_edge);
+                }
+            }
+        }
+    }
+    // Case (2): look for triangles that share one vertex
+    for (auto i = vertexToTriangles.begin(); i != vertexToTriangles.end(); i++) {
+        int v = i->first;
+        vector<Vector3i> triangles = i->second;
+        // loop through all triangles and check them pairwise
+        for (Vector3i t1 : triangles) {
+            for (Vector3i t2 : triangles) {
+                // first check if they are on the same side of the stroke
+                // v1 and v2 belong to t1, v3 and v4 belong to t2
+                int v1, v2, v3, v4;
+                if (t1[0]==v) {
+                    v1 = t1[1]; v2 = t1[2];
+                }else if (t1[1]==v) {
+                    v1 = t1[0]; v2 = t1[2];
+                }else {
+                    v1 = t1[0]; v2 = t1[1];
+                }
+                if (t2[0]==v) {
+                    v3 = t2[1]; v4 = t2[2];
+                }else if (t1[1]==v) {
+                    v3 = t2[0]; v4 = t2[2];
+                }else {
+                    v3 = t2[0]; v4 = t2[1];
+                }
+                if (((_vertices[v1]->position - _vertices[v]->position).dot(_vertices[v2]->binormal)) * ((_vertices[v3]->position - _vertices[v]->position).dot(_vertices[v2]->binormal)) > 0) {
+                    // same side of the stroke
+                    // now check for projective overlap: v3 and v4 onto v1 and v2
+                    bool overlap_res = checkOverlap(v, v1, v2, v3, v4);
+                    if (overlap_res) {
+                        undecided_vertices.insert(v);
+                    }
+                }
+
+            }
+        }
+    }
+    // combine all clusters and return it?
+    for (auto edge : undecided_edges) {
+        res.push_back(edgeToTriangles.at(edge));
+    }
+    for (auto vertex : undecided_vertices) {
+        res.push_back(vertexToTriangles.at(vertex));
+    }
+    return res;
+
+
+}
+
+
+bool Mesh::checkOverlap(int v, int v1, int v2, int v3, int v4) {
+    Vector3f v1v = _vertices[v]->position - _vertices[v1]->position;
+    Vector3f v2v = _vertices[v]->position - _vertices[v2]->position;
+    Vector3f normal = v1v.cross(v2v); // normal of the triangle plane
+    // v3, v4 should be on the opposite side of v2 w.r.t. v1v
+    Vector3f b_v1v = v1v.cross(normal); // binormal of v1v
+    Vector3f b_v2v = v2v.cross(normal); // binormal of v2v
+    // three cases, with v3 and v4 interchangeable
+    Vector3f v1v3 = _vertices[v3]->position - _vertices[v1]->position;
+    Vector3f v1v4 = _vertices[v4]->position - _vertices[v1]->position;
+    Vector3f v1v2 = _vertices[v2]->position - _vertices[v1]->position;
+
+    Vector3f v2v3 = _vertices[v3]->position - _vertices[v2]->position;
+    Vector3f v2v4 = _vertices[v4]->position - _vertices[v2]->position;
+    Vector3f v2v1 = _vertices[v1]->position - _vertices[v2]->position;
+
+    int count_false = 0;
+    // Case 1 -- if all four booleans are true
+    // v3 same v2 w.r.t. v1v  --> v1v3 and v1v2 same direction --> v1v3.dot(b_v1v) same sign as v1v2.dot(b_v1v)
+    bool v3_v2_v1v = v1v3.dot(b_v1v) * v1v2.dot(b_v1v) > 0; if (!v3_v2_v1v) count_false++;
+    // v4 same v2 w.r.t. v1v
+    bool v4_v2_v1v = v1v4.dot(b_v1v) * v1v2.dot(b_v1v) > 0; if (!v4_v2_v1v) count_false++;
+    // v3 same v1 w.r.t.v2v
+    bool v3_v1_v2v = v2v3.dot(b_v2v) * v2v1.dot(b_v2v) > 0; if (!v3_v1_v2v) count_false++;
+    // v4 same v1 w.r.t.v2v
+    bool v4_v1_v2v = v2v4.dot(b_v2v) * v2v1.dot(b_v2v) > 0; if (!v4_v1_v2v) count_false++;
+
+    // case 1: true, true, true, true -- 0 false
+    // case 2,3,4,5: only 1 false
+    return count_false <= 1;
+}
+
+
+
+
+// --------------------- Get matches functions ------------------------
+void Mesh::calculateTangentsAndBinormals(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals)
 {
     // loop through all lines
     for (auto &line : _lines)
@@ -566,6 +743,7 @@ void Mesh::calculateTangents(const vector<Vector3f> &vertices, const vector<Vect
         // loop through all vertices on the line
         Vector3f first_tangent = (vertices[line[1]] - vertices[line[0]]).normalized(); // tangent of the first vertex is just the line segment direction
         _vertices[line[0]]->tangent = first_tangent;
+        _vertices[line[0]]->binormal = first_tangent.cross(vertexNormals[line[0]]);
 
         for (int i = 1; i < n - 1; i++)
         {
@@ -578,10 +756,14 @@ void Mesh::calculateTangents(const vector<Vector3f> &vertices, const vector<Vect
 
             Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
             _vertices[line[i]]->tangent = cur_tangent;
+            _vertices[line[i]]->binormal = cur_tangent.cross(vertexNormals[line[i]]);
         }
         Vector3f last_tangent = (vertices[line[n - 1]] - vertices[line[n - 2]]).normalized(); // tangent of the last vertex is just the line segment direction
         _vertices[line[n - 1]]->tangent = last_tangent;
+        _vertices[line[n - 1]]->binormal = last_tangent.cross(vertexNormals[line[n - 1]]);
     }
+
+
 }
 
 float Mesh::vertexVertexScore(Vertex *P, Vertex *Q, bool leftside)
