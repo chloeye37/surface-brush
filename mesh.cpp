@@ -3,8 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <array>
-#include <math.h>
-#include <set>
+
 
 #include <QFileInfo>
 #include <QString>
@@ -207,6 +206,60 @@ void Mesh::debugSaveToFile()
     outMeshFile.close();
 }
 
+
+void Mesh::debugUndecidedTrianglesSaveToFile()
+{
+    ofstream outStrokeFile;
+    outStrokeFile.open(this->settings->outStrokeFile);
+    ofstream outMeshFile;
+    outMeshFile.open(this->settings->outMeshFile);
+
+    // we have: vector<vector<Vector3i>> undecidedTriangles;
+    set<int> undecided_vertices;
+    vector<int> new_vertex_list;
+    vector<Vector3i> undecided_faces;
+    unordered_map<int, int> old_to_new; // map of vertex indices from old (in _vertices) to new (in undecided_vertices)
+    unordered_map<int, int> new_to_old;
+    for (auto & triangle_list : undecidedTriangles) {
+        for (auto triangle : triangle_list) {
+            undecided_vertices.insert(triangle[0]);
+            undecided_vertices.insert(triangle[1]);
+            undecided_vertices.insert(triangle[2]);
+        }
+    }
+    int new_index = 0;
+    for (auto vertex : undecided_vertices) {
+        new_vertex_list.push_back(new_index);
+        old_to_new.insert({vertex, new_index});
+        new_to_old.insert({new_index, vertex});
+        new_index++;
+    }
+    for (auto new_vertex : new_vertex_list) {
+        outMeshFile << "v " << _vertices[new_to_old.at(new_vertex)]->position[0] << " " << _vertices[new_to_old.at(new_vertex)]->position[1] << " " << _vertices[new_to_old.at(new_vertex)]->position[2] << endl;
+        outStrokeFile << "v " << _vertices[new_to_old.at(new_vertex)]->position[0] << " " << _vertices[new_to_old.at(new_vertex)]->position[1] << " " << _vertices[new_to_old.at(new_vertex)]->position[2] << endl;
+    }
+    std::cout << "here" << std::endl;
+
+
+    for (auto & triangle_list : undecidedTriangles) {
+        for (auto triangle : triangle_list) {
+
+            // then write lines
+            outMeshFile << "l " << (old_to_new.at(triangle[0]) + 1) << " " << (old_to_new.at(triangle[1]) + 1) << endl;
+            outMeshFile << "l " << (old_to_new.at(triangle[1]) + 1) << " " << (old_to_new.at(triangle[2]) + 1) << endl;
+            outMeshFile << "l " << (old_to_new.at(triangle[2]) + 1) << " " << (old_to_new.at(triangle[0]) + 1) << endl;
+            // then write faces for mesh file
+            outMeshFile << "f " << (old_to_new.at(triangle[0]) + 1) << " " << (old_to_new.at(triangle[1]) + 1) << " " << (old_to_new.at(triangle[2]) + 1) << endl;
+
+            outStrokeFile << "l " << (old_to_new.at(triangle[0]) + 1) << " " << (old_to_new.at(triangle[1]) + 1) << endl;
+            outStrokeFile << "l " << (old_to_new.at(triangle[1]) + 1) << " " << (old_to_new.at(triangle[2]) + 1) << endl;
+            outStrokeFile << "l " << (old_to_new.at(triangle[2]) + 1) << " " << (old_to_new.at(triangle[0]) + 1) << endl;
+        }
+    }
+
+    outStrokeFile.close();
+    outMeshFile.close();
+}
 // Preprocess the lines: check if the strokes have an abrupt direction change (angle of 45◦ or less between consecutive tangents)
 // within 15% of overall stroke length from either end and remove the offending end-sections.
 void Mesh::preprocessLines()
@@ -606,14 +659,17 @@ void Mesh::populateTriangleMaps() {
 }
 
 // We have all the triangles (triangles: vector<int> = {v1, v2, v3}), need to identify the incompatible ones
-vector<vector<Vector3i>> Mesh::computeUndecidedTriangles() {
+// Populates vector<vector<Vector3i>> undecidedTriangles
+void Mesh::computeUndecidedTriangles() {
+    populateTriangleMaps();
     vector<vector<Vector3i>> res;
     std::set<std::pair<int,int>> undecided_edges;
-    std::set<int> undecided_vertices;
+    // std::set<int> undecided_vertices;
     // Case (1) and (3): look for triangles that share one edge
     for (auto i = edgeToTriangles.begin(); i != edgeToTriangles.end(); i++) {
         auto cur_edge = i->first;
         auto [v1,v2] = i->first;
+        if (abs(v1 - v2) > 1) continue; // only consider the case where shared edge is on the same stroke
         vector<Vector3i> triangles = i->second;
         // loop through all triangles and check them pairwise
         for (Vector3i t1 : triangles) {
@@ -626,15 +682,18 @@ vector<vector<Vector3i>> Mesh::computeUndecidedTriangles() {
                 if (t2[0] != v1 && t2[0] != v2) v4 = t2[0];
                 else if (t2[1] != v1 && t2[1] != v2) v4 = t2[1];
                 else v4 = t2[2];
-                // check if v3 and v4 are on different sides of the stroke
+                if (v3 == v4) continue; // same triangle...
+                // Case (1): check if v3 and v4 are on different sides of the stroke
                 Vector3f edge = _vertices[v1]->position - _vertices[v2]->position;
                 Vector3f t1edge = _vertices[v3]->position - _vertices[v2]->position;
                 Vector3f t2edge = _vertices[v4]->position - _vertices[v2]->position;
                 if ((t1edge.dot(_vertices[v2]->binormal)) * (t2edge.dot(_vertices[v2]->binormal)) > 0) { // same side
                     // mark this edge
                     undecided_edges.insert(cur_edge);
+                    // std::cout << "Edge shared. v1: " << v1 << " | v2: " << v2 << " | v3: " << v3  << " | v4: " << v4 << std::endl;
+                    // std::cout << "Edge shared: intersection" << std::endl;
                 }
-                // check if the dihedral angle is less than 45 degrees
+                // Case (3): check if the dihedral angle is less than 45 degrees
                 // https://math.stackexchange.com/questions/47059/how-do-i-calculate-a-dihedral-angle-given-cartesian-coordinates
                 Vector3f b2 = edge;
                 Vector3f b1 = - t1edge;
@@ -643,8 +702,9 @@ vector<vector<Vector3i>> Mesh::computeUndecidedTriangles() {
                 Vector3f n2 = b2.cross(b3).normalized();
                 float x = n1.dot(n2);
                 float y = (n1.cross(b2.normalized())).dot(n2);
-                if (atan2(y,x) * 180 / M_PI < 45) { // less than 45 degrees
+                if (abs(atan2(y,x) * 180 / M_PI) < 45) { // less than 45 degrees
                     undecided_edges.insert(cur_edge);
+                    // std::cout << "Edge shared: dihedral less than 45" << std::endl;
                 }
             }
         }
@@ -668,23 +728,29 @@ vector<vector<Vector3i>> Mesh::computeUndecidedTriangles() {
                 }
                 if (t2[0]==v) {
                     v3 = t2[1]; v4 = t2[2];
-                }else if (t1[1]==v) {
+                }else if (t2[1]==v) {
                     v3 = t2[0]; v4 = t2[2];
                 }else {
                     v3 = t2[0]; v4 = t2[1];
                 }
+                if ((v1==v3 && v2==v4) || (v1==v4 && v2==v3)) continue; // same triangle
+                if (abs(v1-v2) > 1 || abs(v3-v4) > 1) continue; // non-consecutive edges for the opposite two edges
                 if (((_vertices[v1]->position - _vertices[v]->position).dot(_vertices[v2]->binormal)) * ((_vertices[v3]->position - _vertices[v]->position).dot(_vertices[v2]->binormal)) > 0) {
                     // same side of the stroke
                     // now check for projective overlap: v3 and v4 onto v1 and v2
                     bool overlap_res = checkOverlap(v, v1, v2, v3, v4);
                     if (overlap_res) {
                         undecided_vertices.insert(v);
+                        // std::cout << "triangle: " << t2[0] << " || " << t2[1] << " || " << t2[2] << std::endl;
+                        // std::cout << "Vertex shared: " << v << "| v1: " << v1 << " | v2: " << v2 << " | v3: " << v3  << " | v4: " << v4 << std::endl;
                     }
                 }
 
             }
         }
     }
+    std::cout << "Vertex shared: overlap: " << undecided_vertices.size() << " out of total of " << _vertices.size() << " vertices." << std::endl;
+    // std::cout << "Edge shared: " << undecided_edges.size() << " out of total of " << " edges." << std::endl;
     // combine all clusters and return it?
     for (auto edge : undecided_edges) {
         res.push_back(edgeToTriangles.at(edge));
@@ -692,7 +758,7 @@ vector<vector<Vector3i>> Mesh::computeUndecidedTriangles() {
     for (auto vertex : undecided_vertices) {
         res.push_back(vertexToTriangles.at(vertex));
     }
-    return res;
+    undecidedTriangles = res;
 
 
 }

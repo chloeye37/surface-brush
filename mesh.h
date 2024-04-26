@@ -3,6 +3,8 @@
 #include <vector>
 #include <map>
 #include <unordered_set>
+#include <math.h>
+#include <set>
 
 #include "Eigen/StdVector"
 #include "Eigen/Dense"
@@ -41,12 +43,15 @@ public:
     void loadFromFile();
     void saveToFile();
     void debugSaveToFile();
+    void debugUndecidedTrianglesSaveToFile();
 
     // the main algo
     void getMatches();
     void preprocessLines();
     void getRestrictedMatchingCandidates();
     void meshStripGeneration();
+
+    void computeUndecidedTriangles(); // temporarily public
 
     void cleanUp(); // perform any cleaning up at the end
 
@@ -74,8 +79,12 @@ private:
     // ------- mesh strip generation
     unordered_map<int,int> vertsToStrokes;
     // ------- Section 5.4: Manifold consolidation
-    unordered_map<std::pair<int, int>, vector<Vector3i>> edgeToTriangles;
+    map<std::pair<int, int>, vector<Vector3i>> edgeToTriangles;
     unordered_map<int, vector<Vector3i>> vertexToTriangles;
+    vector<vector<Vector3i>> undecidedTriangles;
+
+    // -- sec 5.4 debug --
+    std::set<int> undecided_vertices;
 
     // helpers
     vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
@@ -98,6 +107,6 @@ private:
 
     // ------- Section 5.4: Manifold consolidation
     void populateTriangleMaps();
-    vector<vector<Vector3i>> computeUndecidedTriangles();
+
     bool checkOverlap(int v, int v1, int v2, int v3, int v4);
 };
