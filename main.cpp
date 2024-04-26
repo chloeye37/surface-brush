@@ -73,6 +73,11 @@ int main(int argc, char *argv[])
     m.meshStripGeneration();
     std::cout << "Generated mesh strips." << std::endl;
 
+    // ------ Debug undecided triangle generation --------
+    m.computeUndecidedTriangles();
+    std::cout << "Computed undecided triangles." << std::endl;
+
+
     // Finish timing
     auto t1 = std::chrono::high_resolution_clock::now();
     auto duration = duration_cast<std::chrono::milliseconds>(t1 - t0).count();
@@ -84,7 +89,8 @@ int main(int argc, char *argv[])
     //NOTE!!!! Debug save to file currently does not really save faces in a way that makes sense, mostly because matches
     //between edges are directed(Chloe knows about this). One way to make sure we don't double coumt faces is to make a hash
     //out of each face's indices
-    m.debugSaveToFile();
+    // m.debugSaveToFile();
+    m.debugUndecidedTrianglesSaveToFile();
     std::cout << "Saved to file." << std::endl;
 
     // Clean up
