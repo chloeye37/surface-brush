@@ -1131,4 +1131,150 @@ int Mesh::calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool le
     return baseCount;
 }
 
+int Mesh::encodeEdge(int item1, int item2) {
+    return utils::elegantPair(min(item1, item2), max(item1, item2));
+}
+
+void Mesh::createEdgePriorityQueue(unordered_map<int, vector<pair<float,int>>> adjacencies) {
+    this->edgePriorityQueue.clear(); // just to be safe!
+    this->edgeCostMap.clear();
+
+    for (auto& it : adjacencies) {
+        int startVertex = it.first;
+        vector<pair<float,int>> edges = it.second;
+        for (auto edge : edges) {
+            float cost = edge.first;
+            float endVertex = edge.second;
+            int encodedEdge = this->encodeEdge(startVertex, endVertex);
+            if (this->edgeCostMap.contains(encodedEdge)) continue;
+
+            this->edgeCostMap[encodedEdge] = cost;
+            pair<float, int> item = make_pair(cost, encodedEdge);
+            this->edgePriorityQueue.insert(item);
+        }
+
+        this->unionFindParentMap[startVertex] = startVertex;
+    }
+}
+
+/**
+ * @brief Mesh::GAEC
+ * @param adjacencies
+ * ref: https://arxiv.org/pdf/1505.06973
+ */
+void Mesh::GAEC(unordered_map<int, vector<pair<float,int>>> adjacencies) {
+    // NOTE:
+    // VERTICES MENTIONED IN THIS FUNCTION DOES NOT REFER TO ACTUAL VERTICES
+    // THEY ARE COMPONENTS IN THE GRAPH
+
+    // construct priority queue for all edges
+    this->createEdgePriorityQueue(adjacencies);
+
+    while (!this->edgePriorityQueue.empty()) {
+        pair<float, int> biggestCostEdge = *this->edgePriorityQueue.begin();
+        this->edgePriorityQueue.erase(this->edgePriorityQueue.begin());
+        float biggestCost = biggestCostEdge.first;
+        if (biggestCost < 0) break;
+
+        pair<int, int> decodedEdge = utils::elegantUnpair(biggestCostEdge.second);
+        int edgeVertex1 = decodedEdge.first;
+        vector<pair<float,int>> edgeVertex1Neighbors = adjacencies.at(edgeVertex1);
+        int edgeVertex2 = decodedEdge.second;
+        vector<pair<float,int>> edgeVertex2Neighbors = adjacencies.at(edgeVertex2);
+        set<pair<float,int>> edgeVerticesNeighbors; // MUST BE UNIQUE! (v1 & v2 can share neighbors!)
+        edgeVerticesNeighbors.insert(edgeVertex1Neighbors.cbegin(), edgeVertex1Neighbors.cend());
+        edgeVerticesNeighbors.insert(edgeVertex2Neighbors.cbegin(), edgeVertex2Neighbors.cend());
+
+        // join v1 & v2, now v1 becomes v2's parent!
+        this->unionFindParentMap[edgeVertex2] = this->unionFindParentMap.at(edgeVertex1);
+
+        for (auto& neighbor : edgeVerticesNeighbors) {
+            // update the entry inside this->edgePriorityQueue & edgeCostMap
+            float neighborCost = neighbor.first;
+            int neighborVertex = neighbor.second;
+            if (neighborVertex == edgeVertex1 || neighborVertex == edgeVertex2) continue;
+
+            // ---- delete v1-neighbor from priority queue (IF ANY)
+            int encodedEdgeV1 = this->encodeEdge(edgeVertex1, neighborVertex);
+            pair<float,int> edgePriorityQueueEntryV1 = make_pair(neighborCost, encodedEdgeV1);
+            this->edgePriorityQueue.erase(edgePriorityQueueEntryV1);
+            // ---- delete v2-neighbor from priority queue (IF ANY)
+            int encodedEdgeV2 = this->encodeEdge(edgeVertex2, neighborVertex);
+            pair<float,int> edgePriorityQueueEntryV2 = make_pair(neighborCost, encodedEdgeV2);
+            this->edgePriorityQueue.erase(edgePriorityQueueEntryV2);
+            // ---- delete v2-neighbor from edgeCostMap (IF ANY) (v1 is updated below)
+            this->edgeCostMap.erase(encodedEdgeV2);
+
+            // ---- calculate new cost for v1-neighbor
+            int v1NeighborCode = this->encodeEdge(edgeVertex1, neighborVertex);
+            int v2NeighborCode = this->encodeEdge(edgeVertex2, neighborVertex);
+            float costV1Neighbor = this->edgeCostMap.contains(v1NeighborCode) ? this->edgeCostMap.at(v1NeighborCode) : 0;
+            float costV2Neighbor = this->edgeCostMap.contains(v2NeighborCode) ? this->edgeCostMap.at(v2NeighborCode) : 0;
+            float newCost = costV1Neighbor + costV2Neighbor;
+
+            // ---- add v1-neighbor with new cost back into priority queue
+            pair<float,int> newPriorityQueueEntry = make_pair(newCost, v1NeighborCode);
+            this->edgePriorityQueue.insert(newPriorityQueueEntry);
+            // ---- add v1-neighbor with new cost back into edgeCostMap (IF IT ALREADY EXISTS, else add to map)
+            this->edgeCostMap[encodedEdgeV1] = newCost;
+        }
+
+        // update all edges in adjacencies with v1's parent to have new cost
+        // & update all edges in adjacencies with v2's parent to be with v1's parent & to have new cost
+        // ---- update edges with v1's neighbors with new costs
+        vector<pair<float,int>> newEdgeVertex1Neighbors;
+        for (pair<float, int> v1Neighbor : edgeVertex1Neighbors) {
+            int neighbor = v1Neighbor.second;
+            int encodedEdge = this->encodeEdge(neighbor, edgeVertex1);
+            float newCost = this->edgeCostMap.at(encodedEdge);
+            newEdgeVertex1Neighbors.push_back(make_pair(newCost, neighbor));
+
+            // update neighbors of neighbor where v1 is there!
+            vector<pair<float,int>> newNeighborsNeighbors;
+            vector<pair<float,int>> neighborsNeighbors = adjacencies.at(neighbor);
+            for (pair<float, int> neighborsNeighbor : neighborsNeighbors) {
+               if (neighborsNeighbor.second == edgeVertex1) {
+                   pair<float, int> newNeighborsNeighbor = make_pair(newCost, edgeVertex1);
+                   newNeighborsNeighbors.push_back(newNeighborsNeighbor);
+               } else {
+                   newNeighborsNeighbors.push_back(neighborsNeighbor);
+               }
+            }
+            adjacencies[neighbor] = newNeighborsNeighbors;
+        }
+        // ---- replace edges with v2's neighbors to be v1-neighbor and with new costs
+        for (pair<float, int> v2Neighbor : edgeVertex2Neighbors) {
+            int neighbor = v2Neighbor.second;
+            // edgeVertex1, because v1 is now v2's parent
+            int encodedEdge = this->encodeEdge(neighbor, edgeVertex1);
+            float newCost = this->edgeCostMap.at(encodedEdge);
+            newEdgeVertex1Neighbors.push_back(make_pair(newCost, neighbor));
+
+            // update neighbors of neighbor where v2 is there!
+            // specifically, replace v2 with v1, and use new cost
+            vector<pair<float,int>> newNeighborsNeighbors;
+            vector<pair<float,int>> neighborsNeighbors = adjacencies.at(neighbor);
+            for (pair<float, int> neighborsNeighbor : neighborsNeighbors) {
+                // if other vertex is v2
+               if (neighborsNeighbor.second == edgeVertex2) {
+                   // then we use v1 (!!!) & new cost
+                   pair<float, int> newNeighborsNeighbor = make_pair(newCost, edgeVertex1);
+                   newNeighborsNeighbors.push_back(newNeighborsNeighbor);
+               } else {
+                   newNeighborsNeighbors.push_back(neighborsNeighbor);
+               }
+            }
+            adjacencies[neighbor] = newNeighborsNeighbors;
+        }
+        // ---- remove v2 from adjacencies
+        adjacencies.erase(edgeVertex2);
+        // ---- update v1's neighbors & edge costs
+        adjacencies[edgeVertex1] = newEdgeVertex1Neighbors;
+    }
+}
+
+void Mesh::KernighanLin() {
+    //
+}
+
 // -------- PRIVATE ENDS -------------------------------------------------------------------------------

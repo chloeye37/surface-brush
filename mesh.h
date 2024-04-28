@@ -3,6 +3,7 @@
 #include <vector>
 #include <map>
 #include <unordered_set>
+#include <set>
 
 #include "Eigen/StdVector"
 #include "Eigen/Dense"
@@ -72,6 +73,16 @@ private:
     unordered_map<int, unordered_set<int>> rightRestrictedMatchingCandidates;
     // ------- mesh strip generation
     unordered_map<int,int> vertsToStrokes;
+    // ------- mesh consolidation
+    struct classcomp {
+      bool operator() (const pair<float, int>& lhs, const pair<float, int>& rhs) const
+      {return lhs.first > rhs.first;}
+    };
+    // pair< cost, edge encoding >
+    // order: largest to smallest cost
+    set<pair<float, int>, classcomp> edgePriorityQueue;
+    unordered_map<int, float> edgeCostMap;
+    unordered_map<int, int> unionFindParentMap;
 
     // helpers
     vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
@@ -89,4 +100,9 @@ private:
     int calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool leftside);
     // ------- mesh strip generation
     std::vector<Vector3i> triangulatePair(int pi,int qi,int pn, int qn);
+    // ------- mesh consolidation
+    int encodeEdge(int item1, int item2);
+    void createEdgePriorityQueue(unordered_map<int, vector<pair<float,int>>> adjacencies);
+    void GAEC(unordered_map<int, vector<pair<float,int>>> adjacencies); // Greedy Additive Edge Contraction
+    void KernighanLin();
 };
