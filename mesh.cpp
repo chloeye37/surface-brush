@@ -1222,9 +1222,12 @@ void Mesh::GAEC(unordered_map<int, vector<pair<float,int>>> adjacencies) {
         // update all edges in adjacencies with v1's parent to have new cost
         // & update all edges in adjacencies with v2's parent to be with v1's parent & to have new cost
         // ---- update edges with v1's neighbors with new costs
+        unordered_map<int, bool> seenNeighbors;
         vector<pair<float,int>> newEdgeVertex1Neighbors;
         for (pair<float, int> v1Neighbor : edgeVertex1Neighbors) {
             int neighbor = v1Neighbor.second;
+            if (neighbor == edgeVertex2) continue; // if adjacency = v2, skip
+
             int encodedEdge = this->encodeEdge(neighbor, edgeVertex1);
             float newCost = this->edgeCostMap.at(encodedEdge);
             newEdgeVertex1Neighbors.push_back(make_pair(newCost, neighbor));
@@ -1241,14 +1244,20 @@ void Mesh::GAEC(unordered_map<int, vector<pair<float,int>>> adjacencies) {
                }
             }
             adjacencies[neighbor] = newNeighborsNeighbors;
+            seenNeighbors[neighbor] = true;
         }
         // ---- replace edges with v2's neighbors to be v1-neighbor and with new costs
         for (pair<float, int> v2Neighbor : edgeVertex2Neighbors) {
             int neighbor = v2Neighbor.second;
+            if (neighbor == edgeVertex1) continue; // if adjacency = v1, skip
+
             // edgeVertex1, because v1 is now v2's parent
             int encodedEdge = this->encodeEdge(neighbor, edgeVertex1);
             float newCost = this->edgeCostMap.at(encodedEdge);
-            newEdgeVertex1Neighbors.push_back(make_pair(newCost, neighbor));
+
+            if (!seenNeighbors.contains(neighbor)) { // in case v1 already connected to neighbor
+                newEdgeVertex1Neighbors.push_back(make_pair(newCost, neighbor));
+            }
 
             // update neighbors of neighbor where v2 is there!
             // specifically, replace v2 with v1, and use new cost
