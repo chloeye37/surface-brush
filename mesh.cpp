@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <array>
+#include <set>
 
 #include <QFileInfo>
 #include <QString>
@@ -183,6 +184,14 @@ void Mesh::debugSaveToFile()
                 outStrokeFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
                 outMeshFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
             }
+        }
+    }
+
+    //Look at all face hashes
+    std::vector<int> facehashes = std::vector<int>();
+    for(int i = 0; i < _faces.size(); i++){
+        if((_faces[i][0]==_faces[i][1]) || (_faces[i][1]==_faces[i][2]) || (_faces[i][2]==_faces[i][0])){
+            // std::cout << "Duplicate vertices! " + std::to_string(_faces[i][0]) + ", " + std::to_string(_faces[i][1]) + ", " + std::to_string(_faces[i][2]) << std::endl;
         }
     }
 
@@ -917,6 +926,7 @@ Vector3f getnorm(Vector3f p0, Vector3f p1, Vector3f p2){
     return crossed/crossed.norm();
 }
 
+
 /**
  * @brief Mesh::triangulatePair
  * @param pi
@@ -935,10 +945,6 @@ std::vector<Vector3i> Mesh::triangulatePair(int pi,int qi,int pn, int qn){
     if(qi == qn){
         triangles.push_back(Vector3i(pi,pn,qi));
     }
-    //Check if pi and pn are the same
-    else if(pi == pn){
-        triangles.push_back(Vector3i(pi,qn,qi));
-    }
     else{
         //qi and qn are not the same
         int n_midpoints = intabs(qn-qi)-1;
@@ -955,8 +961,8 @@ std::vector<Vector3i> Mesh::triangulatePair(int pi,int qi,int pn, int qn){
             //Try both triangulations. Choose the one with a larger dihedral angle.
             //Edit: Dihedral angle might not be great. Just do the one with the smaller diagonal difference.
             if((pip-qnp).norm()<(qip-pnp).norm()){
-                    triangles.push_back(Vector3i(pi,pn,qn));
-                    triangles.push_back(Vector3i(pi,qi,qn));
+                triangles.push_back(Vector3i(pi,pn,qn));
+                triangles.push_back(Vector3i(pi,qi,qn));
             }
             else{
                 triangles.push_back(Vector3i(qi,qn,pn));
@@ -967,8 +973,6 @@ std::vector<Vector3i> Mesh::triangulatePair(int pi,int qi,int pn, int qn){
             // //There are a nonzero number of midpoints
             // //For now, we choose a naive solution for triangulating. Splice along the approximate midpoint of the segment connecting qi to qn.
             int i_mid = static_cast<int>(floor(0.5*(static_cast<float>(qi)+static_cast<float>(qn))));
-
-            // std::cout << "[ " + std::to_string(qi) + "," + std::to_string(i_mid) + ", " + std::to_string(qn) + "]: " + std::to_string(vertsToStrokes.at(qi)) + " and " + std::to_string(vertsToStrokes.at(qn)) << std::endl;
 
             int ibegin;
             int iend;
@@ -1129,6 +1133,88 @@ int Mesh::calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool le
     baseCount = (matchingFrequency && isConsecutivePair) ? baseCount : -1;
 
     return baseCount;
+}
+
+void addedge(unordered_map<int, vector<std::pair<float,int>>>* adjacencymap, int i, int j, float v){
+    if(adjacencymap->contains(i)){
+        adjacencymap->at(i).push_back(std::make_pair(v,j));
+    }
+    else{
+        vector<std::pair<float,int>> theset = vector<std::pair<float,int>>();
+        theset.push_back(std::make_pair(v,j));
+        adjacencymap->emplace(i , theset);
+    }
+
+    if(adjacencymap->contains(j)){
+        adjacencymap->at(j).push_back(std::make_pair(v,i));
+    }
+    else{
+        vector<std::pair<float,int>> theset = vector<std::pair<float,int>>();
+        theset.push_back(std::make_pair(v,i));
+        adjacencymap->emplace(j,theset);
+    }
+}
+
+void doTrianglesShareEdge(Vector3i t1, Vector3i t2){
+    //What is the best way to check if they share an edge?
+    int shared = 0;
+    for(int i = 0; i < 3; i++){
+        for(int j = 0; j < 3; j++){
+            if(t1[i]==t2[j]){
+                shared = shared + 1;
+            }
+        }
+    }
+    if(shared == 2){
+        return true;
+    }
+    else if(shared >2){
+        std::cout << "warning- two triangles share more than one edge in common" << std::endl;
+        return true;
+    }
+    return false;
+    //Now check all 9 edge pairs. Or uh. Find the vertex that corresponds to the other vertex. Maybe do that. Idk.
+    //TODO: Implement this!
+}
+
+void Mesh::makeGraph(std::vector<Vector3i> trianglepatch){
+//Chloe is making a map that points from triangle hashes to their incompatible neighbors
+    unordered_map<int,unordered_set<int>> incompatibles;
+    int numtriangles = trianglepatch.size();
+    unordered_map<int, vector<std::pair<float,int>>> adjacencies;
+
+    unordered_map<int,int> indicestohashes = unordered_map<int,int>();
+    for(int i = 0; i < numtriangles; i++){
+        //make a node for that triangle
+        //Note: I don't think we even need a node structure.
+        indicestohashes.emplace(i, tohash(trianglepatch[i],_vertices.size()));
+    }
+    //Also we need an output node. That will be below vvv
+    indicestohashes.emplace(-1,-1);
+    //Now look at...like.... ever single pair of triangles. F
+    for(int i = 0; i < numtriangles; i++){
+        for(int j = 0; i < numtriangles; j++){
+            bool mutuallyincompatible = incompatibles.at(i).contains(j) || incompatibles.at(j).contains(i);
+            //If they are mutually incompatible make an arc and give it a negative weight
+            if(mutuallyincompatible){
+                addedge(&adjacencies, i, j, -30.f);
+            }
+            else{
+                bool commonedge = doTrianglesShareEdge(trianglepatch[i],trianglepatch[j]);
+                //TODO: Compute if they share a common edge!
+                //else: If they are not mutually incompatible but share a common edge give it a weight of 1
+                if(commonedge){
+                    addedge(&adjacencies, i, j, 1.f);
+                }
+            }
+        }
+    }
+    //Make an edge between every triangle and the output node as well.
+    for(int i = 0; i < numtriangles; i++){
+        //Assign the weight based on the matching score
+        float matchingweight = 0;
+        addedge(&adjacencies, i, -1, matchingweight);
+    }
 }
 
 // -------- PRIVATE ENDS -------------------------------------------------------------------------------

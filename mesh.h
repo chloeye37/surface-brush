@@ -89,4 +89,6 @@ private:
     int calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool leftside);
     // ------- mesh strip generation
     std::vector<Vector3i> triangulatePair(int pi,int qi,int pn, int qn);
+    // ------- graph generation from triangles
+    void makeGraph(std::vector<Vector3i> trianglepatch);
 };
