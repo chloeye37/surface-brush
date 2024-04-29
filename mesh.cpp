@@ -230,7 +230,6 @@ void Mesh::debugUndecidedTrianglesSaveToFile()
         outMeshFile << "v " << _vertices[new_to_old.at(new_vertex)]->position[0] << " " << _vertices[new_to_old.at(new_vertex)]->position[1] << " " << _vertices[new_to_old.at(new_vertex)]->position[2] << endl;
         outStrokeFile << "v " << _vertices[new_to_old.at(new_vertex)]->position[0] << " " << _vertices[new_to_old.at(new_vertex)]->position[1] << " " << _vertices[new_to_old.at(new_vertex)]->position[2] << endl;
     }
-    std::cout << "here" << std::endl;
 
 
     for (auto & triangle_list : undecidedTriangles) {
