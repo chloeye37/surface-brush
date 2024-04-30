@@ -3,6 +3,7 @@
 #include <vector>
 #include <map>
 #include <unordered_set>
+#include <math.h>
 #include <set>
 
 #include "Eigen/StdVector"
@@ -20,9 +21,10 @@ EIGEN_DEFINE_STL_VECTOR_SPECIALIZATION(Matrix3i);
 typedef struct Vertex
 {
     Vector3f position;
-    bool isActive;    // records whether the corresponding vertex has been deleted or not: if isActive is false then it has been deleted
-    Vector3f tangent; // tangent vector
-    Vector3f normal;  // normal vector
+    bool isActive;     // records whether the corresponding vertex has been deleted or not: if isActive is false then it has been deleted
+    Vector3f tangent;  // tangent vector
+    Vector3f normal;   // normal vector
+    Vector3f binormal; // binormal vector
     float strokeWidth;
     // constructor with all fields
     Vertex(Vector3f _position, bool _isActive, Vector3f _tangent, Vector3f _normal, float _strokeWidth)
@@ -41,12 +43,15 @@ public:
     void loadFromFile();
     void saveToFile();
     void debugSaveToFile();
+    void debugUndecidedTrianglesSaveToFile();
 
     // the main algo
     void getMatches();
     void preprocessLines();
     void getRestrictedMatchingCandidates();
     void meshStripGeneration();
+
+    void computeUndecidedTriangles(); // temporarily public
 
     void cleanUp(); // perform any cleaning up at the end
 
@@ -72,22 +77,32 @@ private:
     unordered_map<int, unordered_set<int>> leftRestrictedMatchingCandidates;
     unordered_map<int, unordered_set<int>> rightRestrictedMatchingCandidates;
     // ------- mesh strip generation
-    unordered_map<int,int> vertsToStrokes;
+    unordered_map<int, int> vertsToStrokes;
     // ------- mesh consolidation
-    struct classcomp {
-      bool operator() (const pair<float, int>& lhs, const pair<float, int>& rhs) const
-      {return lhs.first > rhs.first;}
+    struct classcomp
+    {
+        bool operator()(const pair<float, int> &lhs, const pair<float, int> &rhs) const
+        {
+            return lhs.first > rhs.first;
+        }
     };
     // pair< cost, edge encoding >
     // order: largest to smallest cost
     set<pair<float, int>, classcomp> edgePriorityQueue;
     unordered_map<int, float> edgeCostMap;
     unordered_map<int, int> unionFindParentMap;
+    // ------- Section 5.4: Manifold consolidation
+    map<std::pair<int, int>, vector<Vector3i>> edgeToTriangles;
+    unordered_map<int, vector<Vector3i>> vertexToTriangles;
+    vector<vector<Vector3i>> undecidedTriangles;
+
+    // -- sec 5.4 debug --
+    std::set<int> undecided_vertices;
 
     // helpers
     vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
     // ------- preprocessing
-    void calculateTangents(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals);
+    void calculateTangentsAndBinormals(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals);
     // ------- match computation
     float vertexVertexScore(Vertex *P, Vertex *Q, bool leftside);
     float persistenceScore(Vertex *Pi, Vertex *Qi, Vertex *Pi_1, Vertex *Qi_1); // Qi is the match of Pi, Qi_1 is the match of Pi_1; Pi and Pi_1 are consecutive vertices
@@ -99,10 +114,17 @@ private:
     bool doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSameStroke, int strokeIndex);
     int calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool leftside);
     // ------- mesh strip generation
-    std::vector<Vector3i> triangulatePair(int pi,int qi,int pn, int qn);
+    std::vector<Vector3i> triangulatePair(int pi, int qi, int pn, int qn);
     // ------- mesh consolidation
     int encodeEdge(int item1, int item2);
-    void createEdgePriorityQueue(unordered_map<int, vector<pair<float,int>>> adjacencies);
-    void GAEC(unordered_map<int, vector<pair<float,int>>> adjacencies); // Greedy Additive Edge Contraction
+    void createEdgePriorityQueue(unordered_map<int, vector<pair<float, int>>> adjacencies);
+    void GAEC(unordered_map<int, vector<pair<float, int>>> adjacencies); // Greedy Additive Edge Contraction
     void KernighanLin();
+    // ------- graph generation from triangles
+    void makeGraph(std::vector<Vector3i> trianglepatch);
+
+    // ------- Section 5.4: Manifold consolidation
+    void populateTriangleMaps();
+
+    bool checkOverlap(int v, int v1, int v2, int v3, int v4);
 };
