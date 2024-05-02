@@ -36,21 +36,9 @@ namespace utils {
     // Elegant pairing & unpairing of 2 NON-NEGATIVE INTEGERS
     // reference: http://szudzik.com/ElegantPairing.pdf
     // REMINDER: when using this in this project, always pass in x < y
-    int elegantPair(int x, int y) {
-        if (x != max(x,y)) {
-            return pow(y,2) + x;
-        }
-        return pow(x,2) + x + y;
-    }
+    int elegantPair(int x, int y);
 
-    pair<int,int> elegantUnpair(int z) {
-        int zSqrtFloored = (int)floor(sqrt(z));
-        int zSqrtFlooredSquared = (int)pow(zSqrtFloored,2);
-        if (z - zSqrtFlooredSquared < zSqrtFloored) {
-            return make_pair(z - zSqrtFlooredSquared, zSqrtFloored);
-        }
-        return make_pair(zSqrtFloored, z - zSqrtFlooredSquared - zSqrtFloored);
-    }
+    pair<int,int> elegantUnpair(int z);
 }
 
 #endif // UTILS_H

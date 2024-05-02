@@ -74,8 +74,10 @@ int main(int argc, char *argv[])
     std::cout << "Generated mesh strips." << std::endl;
 
     // ------ Debug undecided triangle generation --------
-    m.computeUndecidedTriangles();
-    std::cout << "Computed undecided triangles." << std::endl;
+//    m.computeUndecidedTriangles();
+//    std::cout << "Computed undecided triangles." << std::endl;
+    m.manifoldConsolidation();
+    std::cout << "Fixed mesh to be a manifold mesh." << std::endl;
 
 
     // Finish timing
