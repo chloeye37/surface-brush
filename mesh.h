@@ -26,12 +26,13 @@ typedef struct Vertex
     Vector3f normal;   // normal vector
     Vector3f binormal; // binormal vector
     float strokeWidth;
+    int lineIndex;     // indicates which line (0-indexed) this vertex belongs to
     // constructor with all fields
-    Vertex(Vector3f _position, bool _isActive, Vector3f _tangent, Vector3f _normal, float _strokeWidth)
-        : position(_position), isActive(_isActive), tangent(_tangent), normal(_normal), strokeWidth(_strokeWidth){};
-    // constructor with all fields except tangent
+    Vertex(Vector3f _position, bool _isActive, Vector3f _tangent, Vector3f _normal, float _strokeWidth, int _lineIndex)
+        : position(_position), isActive(_isActive), tangent(_tangent), normal(_normal), strokeWidth(_strokeWidth), lineIndex(_lineIndex){};
+    // constructor with all fields except tangent and line index
     Vertex(Vector3f _position, bool _isActive, Vector3f _normal, float _strokeWidth)
-        : position(_position), isActive(_isActive), tangent(Vector3f(0, 0, 0)), normal(_normal), strokeWidth(_strokeWidth){};
+        : position(_position), isActive(_isActive), tangent(Vector3f(0, 0, 0)), normal(_normal), strokeWidth(_strokeWidth), lineIndex(-1){};
 } Vertex;
 
 class Mesh
@@ -84,21 +85,25 @@ private:
     {
         bool operator()(const pair<float, int> &lhs, const pair<float, int> &rhs) const
         {
-            return lhs.first > rhs.first;
+
+            return (lhs.first == rhs.first) ? lhs.second > rhs.second : lhs.first > rhs.first;
         }
     };
     // pair< cost, edge encoding >
     // order: largest to smallest cost
-    set<pair<float, int>, classcomp> edgePriorityQueue;
+    multiset<pair<float, int>, classcomp> edgePriorityQueue;
     unordered_map<int, float> edgeCostMap;
     unordered_map<int, int> unionFindParentMap;
-    // ------- Section 5.4: Manifold consolidation
+    // --------------------------- makeGraph part starts
+    // all edges belonging to output triangles (filled in outputTriangles(), to be used in makeGraph())
+    unordered_set<int> outputTrianglesEdges;
     map<std::pair<int, int>, vector<Vector3i>> edgeToTriangles;
     unordered_map<int, vector<Vector3i>> vertexToTriangles;
     vector<vector<Vector3i>> undecidedTriangles;
     // each map in the incompatibleTriangles vector corresponds to one undecidedTriangles's
     // item. so undecidedTriangles.size() == incompatibleTriangles.size();
     vector<unordered_map<int, unordered_set<int>>> incompatibleTriangles;
+    // --------------------------- makeGraph part ends
 
     struct classcomp2
     {
@@ -145,8 +150,6 @@ private:
     // { vertex :
     //          set< pair< triangle1, triangle2 >> (set of incompatible pairs - order matters!)
     unordered_map<int, unordered_set<pair<Vector3i, Vector3i>, classcomp2>> vertexIncompatibleTrianglesMap;
-
-    // -- sec 5.4 debug --
     std::set<int> undecided_vertices;
 
     // helpers
@@ -166,17 +169,14 @@ private:
     // ------- mesh strip generation
     std::vector<Vector3i> triangulatePair(int pi, int qi, int pn, int qn);
     // ------- mesh consolidation
+    bool checkOverlap(int v, int v1, int v2, int v3, int v4);
+    bool areVerticesContinuous(Vertex* v1, Vertex* v2);
+    unordered_map<int, vector<pair<float, int>>> makeGraph(vector<Vector3i> trianglepatch, unordered_map<int, unordered_set<int>> incompatibles);
+    void populateTriangleMaps();
     vector<Vector3i> outputTriangles();
     int encodeEdge(int item1, int item2);
     void createEdgePriorityQueue(unordered_map<int, vector<pair<float, int>>> adjacencies);
     void GAEC(unordered_map<int, vector<pair<float, int>>> adjacencies); // Greedy Additive Edge Contraction
     void KernighanLin();
-    vector<int> getChildrenOfParentFromUnionFind(int parent);
-    // ------- graph generation from triangles
-    unordered_map<int, vector<pair<float, int>>> makeGraph(vector<Vector3i> trianglepatch, unordered_map<int, unordered_set<int>> incompatibles);
-
-    // ------- Section 5.4: Manifold consolidation
-    void populateTriangleMaps();
-
-    bool checkOverlap(int v, int v1, int v2, int v3, int v4);
+    vector<int> getNodesUnderSameParentFromUnionFind(int child);
 };

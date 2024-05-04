@@ -39,6 +39,7 @@ void Mesh::loadFromFile()
     {
         Vertex *vertex = new Vertex(vertices[i], true, normalsAndStrokeWidths[i].first, normalsAndStrokeWidths[i].second);
         // vertex.tangent is set later in calculateTangents()
+        // vertex line index is set later in preprocessLines()
         m_vertices.push_back(vertex);
     }
 
@@ -411,11 +412,14 @@ void Mesh::preprocessLines()
     this->_lines = final_lines;
 
     // NEW NEW NEW NEW
+    // also, add lineIndex here for vertices
     for (int i = 0; i < this->_lines.size(); i++)
     {
         for (int j = 0; j < (this->_lines[i]).size(); j++)
         {
-            vertsToStrokes.emplace(this->_lines[i][j], i);
+            int vertexIndex = this->_lines[i][j];
+            vertsToStrokes.emplace(vertexIndex, i);
+            this->_vertices[vertexIndex]->lineIndex = i;
         }
     }
 }
@@ -591,6 +595,8 @@ void Mesh::meshStripGeneration()
 void Mesh::manifoldConsolidation() {
     this->computeUndecidedTriangles();
     vector<Vector3i> outputTriangles = this->outputTriangles();
+    // NOTE: LINE BELOW IS DEBUG ONLY
+//    outputTriangles.clear();
 
     for (int i = 0; i < this->undecidedTriangles.size(); i++) {
         vector<Vector3i> trianglePatch = this->undecidedTriangles[i];
@@ -598,8 +604,8 @@ void Mesh::manifoldConsolidation() {
         int rootNodeIndex = trianglePatch.size();
         unordered_map<int, vector<pair<float, int>>> adjacencies = this->makeGraph(trianglePatch, curPatchIncompatibleTriangles);
         this->GAEC(adjacencies);
-        // get the children of the output node
-        vector<int> outputChildren = this->getChildrenOfParentFromUnionFind(rootNodeIndex);
+        // get all nodes that are connected to root node
+        vector<int> outputChildren = this->getNodesUnderSameParentFromUnionFind(rootNodeIndex);
         // triangle indices in trianglePatch should be the same as node indices in adjacencies
         for (int outputChild : outputChildren) {
             outputTriangles.push_back(trianglePatch[outputChild]);
@@ -651,7 +657,7 @@ vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections)
     int strokedex = 0;
     while (index < sortedconns.size())
     {
-        // Add vertices to the vertsToStrokes map!
+        // Add vertices to the vertsToStrokes map! (NOTE: this is actually done later in preprocessLines)
         vector<int> currentpoly = std::vector<int>();
         currentpoly.push_back(sortedconns[index][0]);
         currentpoly.push_back(sortedconns[index][1]);
@@ -979,21 +985,22 @@ void Mesh::computeUndecidedTriangles()
         unordered_map<int, unordered_set<int>> incompatibleTrianglesMap;
         for (const pair<Vector3i, Vector3i>& trianglePair : incompatibleTriangles) {
             int triangle1 = triangleToIndexMap.at(trianglePair.first);
+            int triangle2 = triangleToIndexMap.at(trianglePair.second);
+
             if (!incompatibleTrianglesMap.contains(triangle1)) {
                 unordered_set<int> emptyTriangleSet;
                 incompatibleTrianglesMap[triangle1] = emptyTriangleSet;
             }
             unordered_set<int> triangle1Incompatibles = incompatibleTrianglesMap.at(triangle1);
-            triangle1Incompatibles.insert(triangle1);
+            triangle1Incompatibles.insert(triangle2);
             incompatibleTrianglesMap[triangle1] = triangle1Incompatibles;
 
-            int triangle2 = triangleToIndexMap.at(trianglePair.second);
             if (!incompatibleTrianglesMap.contains(triangle2)) {
                 unordered_set<int> emptyTriangleSet;
                 incompatibleTrianglesMap[triangle2] = emptyTriangleSet;
             }
             unordered_set<int> triangle2Incompatibles = incompatibleTrianglesMap.at(triangle2);
-            triangle2Incompatibles.insert(triangle2);
+            triangle2Incompatibles.insert(triangle1);
             incompatibleTrianglesMap[triangle2] = triangle2Incompatibles;
         }
         this->undecidedTriangles.push_back(undecidedTrianglesClusterVector);
@@ -1675,6 +1682,9 @@ vector<Vector3i> Mesh::outputTriangles() {
     for (const Vector3i& triangle : _faces) {
         if (!undecidedTrianglesMap.contains(make_tuple(triangle[0], triangle[1], triangle[2]))) {
             outputs.push_back(triangle);
+            this->outputTrianglesEdges.insert(this->encodeEdge(triangle[0], triangle[1]));
+            this->outputTrianglesEdges.insert(this->encodeEdge(triangle[1], triangle[2]));
+            this->outputTrianglesEdges.insert(this->encodeEdge(triangle[0], triangle[2]));
         }
     }
     return outputs;
@@ -1697,7 +1707,7 @@ void Mesh::createEdgePriorityQueue(unordered_map<int, vector<pair<float, int>>> 
         for (auto edge : edges)
         {
             float cost = edge.first;
-            float endVertex = edge.second;
+            int endVertex = edge.second;
             int encodedEdge = this->encodeEdge(startVertex, endVertex);
             if (this->edgeCostMap.contains(encodedEdge))
                 continue;
@@ -1721,6 +1731,7 @@ void Mesh::GAEC(unordered_map<int, vector<pair<float, int>>> adjacencies)
     // NOTE:
     // VERTICES MENTIONED IN THIS FUNCTION DOES NOT REFER TO ACTUAL VERTICES
     // THEY ARE COMPONENTS IN THE GRAPH
+    // I also never delete any entries in this->edgeCostMap because that's unnecessary
 
     // construct priority queue for all edges
     this->createEdgePriorityQueue(adjacencies);
@@ -1741,13 +1752,19 @@ void Mesh::GAEC(unordered_map<int, vector<pair<float, int>>> adjacencies)
         vector<pair<float, int>> edgeVertex1Neighbors = adjacencies.at(edgeVertex1);
         int edgeVertex2 = decodedEdge.second;
         vector<pair<float, int>> edgeVertex2Neighbors = adjacencies.at(edgeVertex2);
-        set<pair<float, int>> edgeVerticesNeighbors; // MUST BE UNIQUE! (v1 & v2 can share neighbors!)
+        set<pair<float, int>> edgeVerticesNeighbors; // can have duplicated neighbors with # costs, because they might be shared between v1 & v2
         edgeVerticesNeighbors.insert(edgeVertex1Neighbors.cbegin(), edgeVertex1Neighbors.cend());
         edgeVerticesNeighbors.insert(edgeVertex2Neighbors.cbegin(), edgeVertex2Neighbors.cend());
 
-        // join v1 & v2, now v1 becomes v2's parent!
-        this->unionFindParentMap[edgeVertex2] = this->unionFindParentMap.at(edgeVertex1);
+        // join v1 & v2, so change all children with v2 as parent to have v1 as parent
+        for (const auto& [child, parent] : this->unionFindParentMap) {
+            if (parent == edgeVertex2) {
+                this->unionFindParentMap[child] = edgeVertex1;
+            }
+        }
 
+        unordered_set<int> seenNeighbors;
+        // go through v1's neighbors
         for (auto &neighbor : edgeVerticesNeighbors)
         {
             // update the entry inside this->edgePriorityQueue & edgeCostMap
@@ -1756,7 +1773,7 @@ void Mesh::GAEC(unordered_map<int, vector<pair<float, int>>> adjacencies)
             if (neighborVertex == edgeVertex1 || neighborVertex == edgeVertex2)
                 continue;
 
-            // ---- delete v1-neighbor from priority queue (IF ANY)
+            // ---- delete v1-neighbor from priority queue (IF ANY - this applies to the case where v1 & v2 have a common neighbor but w # costs)
             int encodedEdgeV1 = this->encodeEdge(edgeVertex1, neighborVertex);
             pair<float, int> edgePriorityQueueEntryV1 = make_pair(neighborCost, encodedEdgeV1);
             this->edgePriorityQueue.erase(edgePriorityQueueEntryV1);
@@ -1764,8 +1781,13 @@ void Mesh::GAEC(unordered_map<int, vector<pair<float, int>>> adjacencies)
             int encodedEdgeV2 = this->encodeEdge(edgeVertex2, neighborVertex);
             pair<float, int> edgePriorityQueueEntryV2 = make_pair(neighborCost, encodedEdgeV2);
             this->edgePriorityQueue.erase(edgePriorityQueueEntryV2);
-            // ---- delete v2-neighbor from edgeCostMap (IF ANY) (v1 is updated below)
-            this->edgeCostMap.erase(encodedEdgeV2);
+
+            if (seenNeighbors.contains(neighborVertex)) {
+                // this neighbor was processed before (because it is a shared neighbor between v1 & v2 so it probably appears twice)
+                // we have deleted from priority queue (as above)
+                continue;
+            }
+            seenNeighbors.insert(neighborVertex);
 
             // ---- calculate new cost for v1-neighbor
             int v1NeighborCode = this->encodeEdge(edgeVertex1, neighborVertex);
@@ -1784,7 +1806,7 @@ void Mesh::GAEC(unordered_map<int, vector<pair<float, int>>> adjacencies)
         // update all edges in adjacencies with v1's parent to have new cost
         // & update all edges in adjacencies with v2's parent to be with v1's parent & to have new cost
         // ---- update edges with v1's neighbors with new costs
-        unordered_map<int, bool> seenNeighbors;
+        seenNeighbors.clear();
         vector<pair<float, int>> newEdgeVertex1Neighbors;
         for (pair<float, int> v1Neighbor : edgeVertex1Neighbors)
         {
@@ -1805,6 +1827,9 @@ void Mesh::GAEC(unordered_map<int, vector<pair<float, int>>> adjacencies)
                 {
                     pair<float, int> newNeighborsNeighbor = make_pair(newCost, edgeVertex1);
                     newNeighborsNeighbors.push_back(newNeighborsNeighbor);
+                } else if (neighborsNeighbor.second == edgeVertex2) {
+                    // we don't want neighbor-vertex2 to appear in adjacencies!
+                    continue;
                 }
                 else
                 {
@@ -1812,7 +1837,7 @@ void Mesh::GAEC(unordered_map<int, vector<pair<float, int>>> adjacencies)
                 }
             }
             adjacencies[neighbor] = newNeighborsNeighbors;
-            seenNeighbors[neighbor] = true;
+            seenNeighbors.insert(neighbor);
         }
         // ---- replace edges with v2's neighbors to be v1-neighbor and with new costs
         for (pair<float, int> v2Neighbor : edgeVertex2Neighbors)
@@ -1826,29 +1851,30 @@ void Mesh::GAEC(unordered_map<int, vector<pair<float, int>>> adjacencies)
             float newCost = this->edgeCostMap.at(encodedEdge);
 
             if (!seenNeighbors.contains(neighbor))
-            { // in case v1 already connected to neighbor
-                newEdgeVertex1Neighbors.push_back(make_pair(newCost, neighbor));
-            }
+            { // in case v1 already connected to neighbor (neighbor is shared between v1 & v2, so it was processed
+                // above
 
-            // update neighbors of neighbor where v2 is there!
-            // specifically, replace v2 with v1, and use new cost
-            vector<pair<float, int>> newNeighborsNeighbors;
-            vector<pair<float, int>> neighborsNeighbors = adjacencies.at(neighbor);
-            for (pair<float, int> neighborsNeighbor : neighborsNeighbors)
-            {
-                // if other vertex is v2
-                if (neighborsNeighbor.second == edgeVertex2)
+                newEdgeVertex1Neighbors.push_back(make_pair(newCost, neighbor));
+                // update neighbors of neighbor where v2 is there!
+                // specifically, replace v2 with v1, and use new cost
+                vector<pair<float, int>> newNeighborsNeighbors;
+                vector<pair<float, int>> neighborsNeighbors = adjacencies.at(neighbor);
+                for (pair<float, int> neighborsNeighbor : neighborsNeighbors)
                 {
-                    // then we use v1 (!!!) & new cost
-                    pair<float, int> newNeighborsNeighbor = make_pair(newCost, edgeVertex1);
-                    newNeighborsNeighbors.push_back(newNeighborsNeighbor);
+                    // if other vertex is v2
+                    if (neighborsNeighbor.second == edgeVertex2)
+                    {
+                        // then we use v1 (!!!) & new cost
+                        pair<float, int> newNeighborsNeighbor = make_pair(newCost, edgeVertex1);
+                        newNeighborsNeighbors.push_back(newNeighborsNeighbor);
+                    }
+                    else
+                    {
+                        newNeighborsNeighbors.push_back(neighborsNeighbor);
+                    }
                 }
-                else
-                {
-                    newNeighborsNeighbors.push_back(neighborsNeighbor);
-                }
+                adjacencies[neighbor] = newNeighborsNeighbors;
             }
-            adjacencies[neighbor] = newNeighborsNeighbors;
         }
         // ---- remove v2 from adjacencies
         adjacencies.erase(edgeVertex2);
@@ -1862,11 +1888,12 @@ void Mesh::KernighanLin()
     //
 }
 
-vector<int> Mesh::getChildrenOfParentFromUnionFind(int parent) {
+vector<int> Mesh::getNodesUnderSameParentFromUnionFind(int child) {
+    int parent = this->unionFindParentMap.at(child);
     vector<int> children;
     for (const auto & [ mapChild, mapParent ] : this->unionFindParentMap) {
-        if (mapParent == parent && mapChild != parent) {
-            // the parent might have itself as a child in the map
+        if (mapParent == parent && mapChild != child) {
+            // child passed in is the root node. We don't want the root node in our output
             children.push_back(mapChild);
         }
     }
@@ -1923,6 +1950,28 @@ bool doTrianglesShareEdge(Vector3i t1, Vector3i t2)
     return false;
 }
 
+bool Mesh::areVerticesContinuous(Vertex* v1, Vertex* v2) {
+    if (v1->lineIndex != v2->lineIndex) return false;
+
+    vector<int> line = this->_lines[v1->lineIndex];
+    for (int i = 0; i < line.size(); i++) {
+        int vertexIndex = line[i];
+        Vertex* curVertex = this->_vertices[vertexIndex];
+        if (curVertex == v1) {
+            // check if v2 is the next one in line
+            if (i < line.size() && this->_vertices[line[i+1]] == v2) {
+                return true;
+            }
+        } else if (curVertex == v2) {
+            // check if v2 is the next one in line
+            if (i < line.size() && this->_vertices[line[i+1]] == v1) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 unordered_map<int, vector<pair<float, int>>> Mesh::makeGraph(vector<Vector3i> trianglepatch, unordered_map<int, unordered_set<int>> incompatibles)
 {
     int numtriangles = trianglepatch.size();
@@ -1974,7 +2023,42 @@ unordered_map<int, vector<pair<float, int>>> Mesh::makeGraph(vector<Vector3i> tr
     for (int i = 0; i < numtriangles; i++)
     {
         // Assign the weight based on the matching score
-        float matchingweight = 0;
+        float matchingweight = 0.f;
+
+        // check which 2 of them are on the same stroke
+        Vertex* v1 = this->_vertices[trianglepatch[i][0]];
+        Vertex* v2 = this->_vertices[trianglepatch[i][1]];
+        Vertex* v3 = this->_vertices[trianglepatch[i][2]];
+        // first, check if all 3 are on the same stroke:
+        if (this->areVerticesContinuous(v1, v2)) {
+            // v3 is the other vertex
+            // does not matter if I check left/right with v1 or v2
+            Vector3f v1v3 = (v3->position - v1->position).normalized();
+            bool leftside = v1->binormal.dot(v1v3) < 0;
+            matchingweight = this->vertexVertexScore(v1, v3, leftside) + this->vertexVertexScore(v2, v3, leftside);
+        } else if (this->areVerticesContinuous(v3, v2)) {
+            // v1 is the other vertex
+            Vector3f v3v1 = (v1->position - v3->position).normalized();
+            bool leftside = v3->binormal.dot(v3v1) < 0;
+            matchingweight = this->vertexVertexScore(v3, v1, leftside) + this->vertexVertexScore(v2, v1, leftside);
+        } else if (this->areVerticesContinuous(v1, v3)) {
+            // v2 is the other vertex
+            Vector3f v1v2 = (v2->position - v1->position).normalized();
+            bool leftside = v1->binormal.dot(v1v2) < 0;
+            matchingweight = this->vertexVertexScore(v1, v2, leftside) + this->vertexVertexScore(v3, v2, leftside);
+        } else {
+            matchingweight = -30.f;
+//            cerr << "Triangle " << trianglepatch[i][0] << "-" << trianglepatch[i][1] << "-" << trianglepatch[i][2] << " does not have any continuous, same-line pair of vertices";
+        }
+//        int v1Index = this->getVertexIndex(v1);
+//        int v2Index = this->getVertexIndex(v2);
+        int v1Index = trianglepatch[i][0];
+        int v2Index = trianglepatch[i][1];
+        int v3Index = trianglepatch[i][2];
+        matchingweight += this->outputTrianglesEdges.contains(this->encodeEdge(v1Index, v2Index));
+        matchingweight += this->outputTrianglesEdges.contains(this->encodeEdge(v3Index, v2Index));
+        matchingweight += this->outputTrianglesEdges.contains(this->encodeEdge(v3Index, v1Index));
+
         addedge(&adjacencies, i, numtriangles, matchingweight);
     }
     return adjacencies;
