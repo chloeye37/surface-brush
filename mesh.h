@@ -98,7 +98,7 @@ private:
     vector<int> viterbi(vector<int> S, vector<vector<int>> candidates, bool leftSide); // for testing purposes, moved into public
     // ------- restricted matching
     pair<vector<int>, vector<int>> splitStrokesIntoLeftRight(int baseStrokeIndex);
-    bool doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSameStroke, int strokeIndex);
+    bool doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSameStroke, int strokeIndex, bool closeToEnd);
     int calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool leftside);
     // ------- mesh strip generation
     std::vector<Vector3i> triangulatePair(int pi,int qi,int pn, int qn);

@@ -484,7 +484,9 @@ void Mesh::getRestrictedMatchingCandidates()
                 if (vertexIndex == vertexIndex2)
                     continue;
 
-                if (this->doTwoVerticesMatch(vertexIndex, vertexIndex2, true, true, i))
+                bool isEitherVertexCloseToEnd = (vertexIndex > stroke.size() - this->settings->noOfNearEndVerticesToConsider || vertexIndex < this->settings->noOfNearEndVerticesToConsider || vertexIndex2 > stroke.size() - this->settings->noOfNearEndVerticesToConsider || vertexIndex2 < this->settings->noOfNearEndVerticesToConsider);
+
+                if (this->doTwoVerticesMatch(vertexIndex, vertexIndex2, true, true, i, isEitherVertexCloseToEnd))
                 {
                     if (!this->leftRestrictedMatchingCandidates.contains(vertexIndex))
                     {
@@ -494,7 +496,7 @@ void Mesh::getRestrictedMatchingCandidates()
                     leftMatches.insert(vertexIndex2);
                     this->leftRestrictedMatchingCandidates[vertexIndex] = leftMatches;
                 }
-                else if (this->doTwoVerticesMatch(vertexIndex, vertexIndex2, false, true, i))
+                else if (this->doTwoVerticesMatch(vertexIndex, vertexIndex2, false, true, i, isEitherVertexCloseToEnd))
                 {
                     if (!this->rightRestrictedMatchingCandidates.contains(vertexIndex))
                     {
@@ -808,7 +810,7 @@ void Mesh::calculateTangentsAndBinormals(const vector<Vector3f> &vertices, const
         // loop through all vertices on the line
         Vector3f first_tangent = (vertices[line[1]] - vertices[line[0]]).normalized(); // tangent of the first vertex is just the line segment direction
         _vertices[line[0]]->tangent = first_tangent;
-        _vertices[line[0]]->binormal = first_tangent.cross(vertexNormals[line[0]]);
+        _vertices[line[0]]->binormal = (first_tangent.cross(vertexNormals[line[0]])).normalized();
 
         for (int i = 1; i < n - 1; i++)
         {
@@ -821,11 +823,11 @@ void Mesh::calculateTangentsAndBinormals(const vector<Vector3f> &vertices, const
 
             Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
             _vertices[line[i]]->tangent = cur_tangent;
-            _vertices[line[i]]->binormal = cur_tangent.cross(vertexNormals[line[i]]);
+            _vertices[line[i]]->binormal = (cur_tangent.cross(vertexNormals[line[i]])).normalized();
         }
         Vector3f last_tangent = (vertices[line[n - 1]] - vertices[line[n - 2]]).normalized(); // tangent of the last vertex is just the line segment direction
         _vertices[line[n - 1]]->tangent = last_tangent;
-        _vertices[line[n - 1]]->binormal = last_tangent.cross(vertexNormals[line[n - 1]]);
+        _vertices[line[n - 1]]->binormal = (last_tangent.cross(vertexNormals[line[n - 1]])).normalized();
     }
 
 
@@ -1258,14 +1260,15 @@ std::vector<Vector3i> Mesh::triangulatePair(int pi,int qi,int pn, int qn){
  * @param leftside
  * @param isOnSameStroke - whether p & q are on the same stroke
  * @param strokeIndex - -1 if isOnSameStroke == false, stroke index if isOnSameStroke == true
+ * @param closeToEnd - if either of these vertices are in the vicinity of stroke end-vertices
  * @return whether the vertices satisfy the condition
  */
-bool Mesh::doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSameStroke, int strokeIndex)
+bool Mesh::doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSameStroke, int strokeIndex, bool closeToEnd)
 {
     Vertex *p = this->_vertices[pIndex];
     Vertex *q = this->_vertices[qIndex];
     Vector3f pq = q->position - p->position;
-    Vector3f pBinormal = p->tangent.cross(p->normal).normalized();
+//    Vector3f pBinormal = (p->tangent.cross(p->normal)).normalized();
 
     // condition 1
     float length = pq.norm();
@@ -1283,11 +1286,11 @@ bool Mesh::doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSa
     float angle;
     if (leftside)
     {
-        angle = acos(pq.dot(-pBinormal));
+        angle = acos(pq.dot(-p->binormal));
     }
     else
     {
-        angle = acos(pq.dot(pBinormal));
+        angle = acos(pq.dot(p->binormal));
     }
     if (angle > M_PI / 3.f)
     {
@@ -1299,6 +1302,22 @@ bool Mesh::doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSa
     {
         vector<int> stroke = this->_lines[strokeIndex];
         if (areVerticesImmediateNeighbors(pIndex, qIndex, stroke))
+        {
+            return false;
+        }
+    }
+
+    // enforcing condition 2 for vertices in the vicinity of stroke end-vertices
+    if (closeToEnd) {
+        Vector3f qp = (q->position - p->position).normalized();
+        float angle2; // angle between qp & q's binormal
+        bool leftside2 = q->binormal.dot(qp) < 0; // whether p is on leftside of q
+        if (leftside2) {
+           angle2 = acos(qp.dot(-q->binormal));
+        } else {
+            angle2 = acos(qp.dot(q->binormal));
+        }
+        if (angle2 > M_PI / 3.f)
         {
             return false;
         }
@@ -1327,14 +1346,20 @@ int Mesh::calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool le
         bool isEverMatched = false;
         for (int j = 0; j < otherStroke.size(); j++)
         {
-            int otherVertex = otherStroke[j];
-            bool baseOthermatched = this->doTwoVerticesMatch(baseVertex, otherVertex, leftside, false, -1);
-
+            // <notice, the 3 lines below are old comments>
             // TODO: IS THIS PART CORRECT?
             // !leftside is incorrect bc we don't know what side baseVertex is on w.r.t otherVertex
             // this is for p.9, section 5.2, restricted matching set subsection
-            //            bool isEitherVertexEndVertex = (i == baseStroke.size() - 1 || i == 0) || (j == otherStroke.size() - 1 || j == 0);
-            //            baseOthermatched = baseOthermatched && this->doTwoVerticesMatch(otherVertex, baseVertex, !leftside, false, -1);
+
+
+            // TODO: FOR NOW, I SAY WITHIN THE LAST 5 VERTICES, BOTH V1 & V2 NEED TO HOLD CONDITION 2
+            bool isEitherVertexCloseToEnd = (i > baseStroke.size() - this->settings->noOfNearEndVerticesToConsider || i < this->settings->noOfNearEndVerticesToConsider) || (j > otherStroke.size() - this->settings->noOfNearEndVerticesToConsider || j < this->settings->noOfNearEndVerticesToConsider);
+
+            int otherVertex = otherStroke[j];
+            bool baseOthermatched = this->doTwoVerticesMatch(baseVertex, otherVertex, leftside, false, -1, isEitherVertexCloseToEnd);
+
+//            baseOthermatched = baseOthermatched && this->doTwoVerticesMatch(otherVertex, baseVertex, !leftside, false, -1);
+
 
             if (baseOthermatched)
             {
@@ -1402,7 +1427,7 @@ void addedge(unordered_map<int, vector<std::pair<float,int>>>* adjacencymap, int
     }
 }
 
-void doTrianglesShareEdge(Vector3i t1, Vector3i t2){
+bool doTrianglesShareEdge(Vector3i t1, Vector3i t2){
     //What is the best way to check if they share an edge?
     int shared = 0;
     for(int i = 0; i < 3; i++){

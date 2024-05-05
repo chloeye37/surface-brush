@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
     appSettings->outStrokeFile = settings.value("IO/outStrokeFile").toString().toStdString();
     appSettings->outMeshFile = settings.value("IO/outMeshFile").toString().toStdString();
     appSettings->isDebug = settings.value("Debug/isDebug").toBool();
+    appSettings->noOfNearEndVerticesToConsider = settings.value("Params/noOfNearEndVerticesToConsider").toInt();
 
     // Load
     Mesh m;
