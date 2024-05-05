@@ -182,41 +182,47 @@ void Mesh::debugSaveToFile()
         }
     }
     // Write a line segment if there is a match between two points
-    for (size_t i = 0; i < _vertices.size(); i++)
-    {
-        if (leftMatch.contains(i))
-        {
-            if (leftMatch.at(i) != -1)
-            {
-                outStrokeFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
-                outMeshFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
-            }
-        }
-        if (rightMatch.contains(i))
-        {
-            if (rightMatch.at(i) != -1)
-            {
-                outStrokeFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
-                outMeshFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
-            }
-        }
-    }
+//    for (size_t i = 0; i < _vertices.size(); i++)
+//    {
+//        if (leftMatch.contains(i))
+//        {
+//            if (leftMatch.at(i) != -1)
+//            {
+//                outStrokeFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
+//                outMeshFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
+//            }
+//        }
+//        if (rightMatch.contains(i))
+//        {
+//            if (rightMatch.at(i) != -1)
+//            {
+//                outStrokeFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
+//                outMeshFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
+//            }
+//        }
+//    }
 
     // Look at all face hashes
-    std::vector<int> facehashes = std::vector<int>();
-    for (int i = 0; i < _faces.size(); i++)
-    {
-        if ((_faces[i][0] == _faces[i][1]) || (_faces[i][1] == _faces[i][2]) || (_faces[i][2] == _faces[i][0]))
-        {
-            // std::cout << "Duplicate vertices! " + std::to_string(_faces[i][0]) + ", " + std::to_string(_faces[i][1]) + ", " + std::to_string(_faces[i][2]) << std::endl;
-        }
-    }
+//    std::vector<int> facehashes = std::vector<int>();
+//    for (int i = 0; i < _faces.size(); i++)
+//    {
+//        if ((_faces[i][0] == _faces[i][1]) || (_faces[i][1] == _faces[i][2]) || (_faces[i][2] == _faces[i][0]))
+//        {
+//            // std::cout << "Duplicate vertices! " + std::to_string(_faces[i][0]) + ", " + std::to_string(_faces[i][1]) + ", " + std::to_string(_faces[i][2]) << std::endl;
+//        }
+//    }
 
-    // Write faces (MESH ONLY)
+    // Write faces (MESH ONLY) & boundaries of faces (STROKE ONLY)
     for (size_t i = 0; i < _faces.size(); i++)
     {
         const Vector3i &f = _faces[i];
         outMeshFile << "f " << (f[0] + 1) << " " << (f[1] + 1) << " " << (f[2] + 1) << endl;
+        int v1 = f[0] + 1;
+        int v2 = f[1] + 1;
+        int v3 = f[2] + 1;
+        outStrokeFile << "l " << v1 << " " << v2 << endl;
+        outStrokeFile << "l " << v2 << " " << v3 << endl;
+        outStrokeFile << "l " << v1 << " " << v3 << endl;
     }
 
     outStrokeFile.close();
