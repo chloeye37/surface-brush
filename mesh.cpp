@@ -1649,61 +1649,7 @@ void Mesh::makeGraph(std::vector<Vector3i> trianglepatch){
     }
 }
 
-void Mesh::computeBoundaries(){
-    _boundaries.clear();
-
-    //TODO: remember what the heck you were cooking with wasfound and immediatelyfound
-
-    bool debugprint = false;
-
-    map<pair<int,int>,int> edgecounts;
-    //Accumulate a map that goes from int pairs to int counts.
-    for(int i = 0; i < _faces.size(); i++){
-        Vector3i currtriangle = sortvec(_faces[i]);
-        //Get each edge
-        pair<int,int> e01 = make_pair(currtriangle[0],currtriangle[1]);
-        pair<int,int> e12 = make_pair(currtriangle[1],currtriangle[2]);
-        pair<int,int> e02 = make_pair(currtriangle[0],currtriangle[2]);
-        if(edgecounts.contains(e01)){
-            edgecounts.at(e01) = edgecounts.at(e01) + 1;
-        }
-        else{
-            edgecounts.emplace(e01, 1);
-        }
-
-        if(edgecounts.contains(e12)){
-            edgecounts.at(e12) = edgecounts.at(e12) + 1;
-        }
-        else{
-            edgecounts.emplace(e12, 1);
-        }
-
-        if(edgecounts.contains(e02)){
-            edgecounts.at(e02) = edgecounts.at(e02) + 1;
-        }
-        else{
-            edgecounts.emplace(e02, 1);
-        }
-    }
-
-    //What now? Iterate through all of edgecounts and only keep the keys(pairs) that have a value of 1. Store them in a vector.
-    std::vector<pair<int,int>> boundarypairs = std::vector<pair<int,int>>();
-    int unchanged  = 0;
-    for (auto const& [key, val] : edgecounts){
-        if(val == 1){
-            boundarypairs.push_back(key);
-            // _vertices[key.first]->position = _vertices[key.first]->position + 0.05*_vertices[key.first]->normal;
-            // _vertices[key.second]->position = _vertices[key.second]->position + 0.05*_vertices[key.second]->normal;
-        }
-        else{
-            unchanged += 1;
-        }
-    }
-    std::cout << "Total number of boundary pairs: " + std::to_string(boundarypairs.size()) << std::endl;
-    //Now what? Try displacing every single set of boundary pairs. Like just scale them up or something.
-    std::cout << "Total number of non-boundary pairs: " + std::to_string(unchanged) << std::endl;
-
-    //Sick! We now have all boundary pairs. We now need to convert these pairs into polylines.
+vector<pair<map<int,int>,vector<pair<int,int>>>> clumpPairs(vector<pair<int,int>> boundarypairs){
     vector<pair<map<int,int>,vector<pair<int,int>>>> lineclumps = vector<pair<map<int,int>,vector<pair<int,int>>>>();
 
     //Go through the vector of boundary pairs and put everything into a vector of pairs
@@ -1775,8 +1721,95 @@ void Mesh::computeBoundaries(){
             pair<map<int,int>,vector<pair<int,int>>> newclump = make_pair(newmap,newpairlist);
             lineclumps.push_back(newclump);
         }
-
     }
+    return lineclumps;
+}
+
+void Mesh::computeBoundaries(){
+    _boundaries.clear();
+
+    //TODO: remember what the heck you were cooking with wasfound and immediatelyfound
+
+    bool debugprint = false;
+
+    map<pair<int,int>,int> edgecounts;
+    //Accumulate a map that goes from int pairs to int counts.
+    for(int i = 0; i < _faces.size(); i++){
+        Vector3i currtriangle = sortvec(_faces[i]);
+        //Get each edge
+        pair<int,int> e01 = make_pair(currtriangle[0],currtriangle[1]);
+        pair<int,int> e12 = make_pair(currtriangle[1],currtriangle[2]);
+        pair<int,int> e02 = make_pair(currtriangle[0],currtriangle[2]);
+        if(edgecounts.contains(e01)){
+            edgecounts.at(e01) = edgecounts.at(e01) + 1;
+        }
+        else{
+            edgecounts.emplace(e01, 1);
+        }
+
+        if(edgecounts.contains(e12)){
+            edgecounts.at(e12) = edgecounts.at(e12) + 1;
+        }
+        else{
+            edgecounts.emplace(e12, 1);
+        }
+
+        if(edgecounts.contains(e02)){
+            edgecounts.at(e02) = edgecounts.at(e02) + 1;
+        }
+        else{
+            edgecounts.emplace(e02, 1);
+        }
+    }
+
+    //What now? Iterate through all of edgecounts and only keep the keys(pairs) that have a value of 1. Store them in a vector.
+    std::vector<pair<int,int>> boundarypairs = std::vector<pair<int,int>>();
+    int unchanged  = 0;
+    for (auto const& [key, val] : edgecounts){
+        if(val == 1){
+            boundarypairs.push_back(key);
+            // _vertices[key.first]->position = _vertices[key.first]->position + 0.05*_vertices[key.first]->normal;
+            // _vertices[key.second]->position = _vertices[key.second]->position + 0.05*_vertices[key.second]->normal;
+        }
+        else{
+            unchanged += 1;
+        }
+    }
+    std::cout << "Total number of boundary pairs: " + std::to_string(boundarypairs.size()) << std::endl;
+    //Now what? Try displacing every single set of boundary pairs. Like just scale them up or something.
+    std::cout << "Total number of non-boundary pairs: " + std::to_string(unchanged) << std::endl;
+
+    //What do we want to do now? create a map of counts for each index hit.
+    map<int,int> generalcounts;
+    for(int i = 0; i < boundarypairs.size(); i++){
+        pair<int,int> thepair = boundarypairs[i];
+        if(generalcounts.contains(thepair.first)){
+            generalcounts.at(thepair.first) += 1;
+        }
+        else{
+            generalcounts.emplace(thepair.first, 1);
+        }
+        if(generalcounts.contains(thepair.second)){
+            generalcounts.at(thepair.second) += 1;
+        }
+        else{
+            generalcounts.emplace(thepair.second, 1);
+        }
+    }
+
+    vector<pair<int,int>> filteredpairs;
+    //Once the map is full, go through each pair and make sure that the counts of the first and second indices are less than or equal to 2. Add the valid
+    //ones to a list of filtered pairs.
+    for(int i = 0; i < boundarypairs.size(); i++){
+        pair<int,int> thepair = boundarypairs[i];
+        if((generalcounts.at(thepair.first) <= 2) && (generalcounts.at(thepair.second) <= 2)){
+            filteredpairs.push_back(thepair);
+        }
+    }
+
+
+    //Sick! We now have all boundary pairs. We now need to convert these pairs into polylines.
+    vector<pair<map<int,int>,vector<pair<int,int>>>> lineclumps = clumpPairs(filteredpairs);
 
     // Now what? lineclumps should be full of stuff by now
 
@@ -2020,7 +2053,7 @@ void Mesh::getNewBoundaryBinormals() {
             int neighbor1 = -1; int neighbor2 = -1;
             vector<int> line = boundary_line.second;
             int n = line.size();
-            if (boundary_line.first) { // it's a line
+            if (boundary_line.first) { // =========== it's a line
                 // get new tangents
                 // loop through all vertices on the line
                 Vector3f first_tangent = (_vertices[line[1]]->position - _vertices[line[0]]->position).normalized(); // tangent of the first vertex is just the line segment direction
@@ -2030,7 +2063,8 @@ void Mesh::getNewBoundaryBinormals() {
                 // unordered_map<int, vector<Vector3i>> vertexToTriangles;
                 Vector3i tri = vertexToTriangles.at(line[0])[0];
                 if (tri[0] != line[0]) {
-
+                    // use the vector tri[0] - line[0]: binormals should have negative dot product with this vector
+                    if (_vertices[line[0]]->boundary_binormal.dot(_vertices[tri[0]]->position - _vertices[line[0]]->position) > 0) _vertices[line[0]]->boundary_binormal = - _vertices[line[0]]->boundary_binormal;
                 }
 
                 for (int i = 1; i < n - 1; i++)
