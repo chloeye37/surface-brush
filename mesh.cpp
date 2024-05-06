@@ -509,6 +509,25 @@ void Mesh::getRestrictedMatchingCandidates()
     }
 }
 
+pair<int,int> sortpair(int x, int y){
+    if(x < y){
+        return make_pair(x,y);
+    }
+    return make_pair(y,x);
+}
+
+void Mesh::addedgetotrimap(int x, int y, Vector3i thetriangle){
+    pair<int,int> thepair = sortpair(x,y);
+    if(edges_to_triangles.contains(thepair)){
+        edges_to_triangles.at(thepair).push_back(thetriangle);
+    }
+    else{
+        vector<Vector3i> newvec;
+        newvec.push_back(thetriangle);
+        edges_to_triangles.emplace(thepair, newvec);
+    }
+}
+
 void Mesh::meshStripGeneration() {
     unordered_set<int> trihashes;
 
@@ -531,6 +550,9 @@ void Mesh::meshStripGeneration() {
                         if(!trihashes.contains(trihash)){
                             _faces.push_back(outtriangles[k]);
                             trihashes.insert(trihash);
+                            addedgetotrimap(outtriangles[k][0],outtriangles[k][1], outtriangles[k]);
+                            addedgetotrimap(outtriangles[k][1],outtriangles[k][2], outtriangles[k]);
+                            addedgetotrimap(outtriangles[k][2],outtriangles[k][0], outtriangles[k]);
                         }
                     }
                 }
@@ -547,6 +569,9 @@ void Mesh::meshStripGeneration() {
                         if(!trihashes.contains(trihash)){
                             _faces.push_back(outtriangles[k]);
                             trihashes.insert(trihash);
+                            addedgetotrimap(outtriangles[k][0],outtriangles[k][1], outtriangles[k]);
+                            addedgetotrimap(outtriangles[k][1],outtriangles[k][2], outtriangles[k]);
+                            addedgetotrimap(outtriangles[k][2],outtriangles[k][0], outtriangles[k]);
                         }
                     }
                 }
@@ -615,8 +640,9 @@ vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections)
 // --------------------- Section 5.4 ------------------------
 // --------------------- Get undecided triangle clusters ------------------------
 // A function to create a map that associates each vertex with its list of triangles, and a map that associates every edge with its triangles
+// Also populates an adjacency list for section 6
 void Mesh::populateTriangleMaps() {
-    for (Vector3i triangle : _faces) {
+    for (Vector3i &triangle : _faces) {
         // first populate unordered_map<std::pair<int, int>, Vector3i> edgeToTriangles
         int v1 = triangle[0]; int v2 = triangle[1]; int v3 = triangle[2];
         auto pair12 = v1 < v2 ? std::make_pair(v1,v2) : std::make_pair(v2,v1); // edge ordered by smaller vertex -- larger vertex
@@ -654,6 +680,53 @@ void Mesh::populateTriangleMaps() {
         }else {
             vertexToTriangles.insert({v2, {triangle}});
         }
+
+        // finally populate unordered_map<int, vector<int>> adjacencyList
+        // v1 should have v2 and v3 in its adjacency list, and so on
+        if (adjacencyList.contains(v1)) {
+            // if v2 is not already inside v1's adjacency list, add v2
+            if (std::find(adjacencyList.at(v1).begin(), adjacencyList.at(v1).end(), v2) == adjacencyList.at(v1).end()) adjacencyList.at(v1).push_back(v2);
+            // if v3 is not already inside v1's adjacency list, add v3
+            if (std::find(adjacencyList.at(v1).begin(), adjacencyList.at(v1).end(), v3) == adjacencyList.at(v1).end()) adjacencyList.at(v1).push_back(v3);
+        }else {
+            adjacencyList.insert({v1, {v2, v3}});
+        }
+        if (adjacencyList.contains(v2)) {
+            // if v1 is not already inside v2's adjacency list, add v1
+            if (std::find(adjacencyList.at(v2).begin(), adjacencyList.at(v2).end(), v1) == adjacencyList.at(v2).end()) adjacencyList.at(v2).push_back(v1);
+            // if v3 is not already inside v2's adjacency list, add v3
+            if (std::find(adjacencyList.at(v2).begin(), adjacencyList.at(v2).end(), v3) == adjacencyList.at(v2).end()) adjacencyList.at(v2).push_back(v3);
+        }else {
+            adjacencyList.insert({v2, {v1, v3}});
+        }
+        if (adjacencyList.contains(v3)) {
+            // if v2 is not already inside v3's adjacency list, add v2
+            if (std::find(adjacencyList.at(v3).begin(), adjacencyList.at(v3).end(), v2) == adjacencyList.at(v3).end()) adjacencyList.at(v3).push_back(v2);
+            // if v1 is not already inside v3's adjacency list, add v1
+            if (std::find(adjacencyList.at(v3).begin(), adjacencyList.at(v3).end(), v1) == adjacencyList.at(v3).end()) adjacencyList.at(v3).push_back(v1);
+        }else {
+            adjacencyList.insert({v3, {v2, v1}});
+        }
+
+    }
+    // also use edges from _lines: neighboring vertices are connected: vector<vector<int>> _lines;
+    for (auto &line : _lines) {
+        for (int i = 0; i < line.size(); i++) {
+            if (adjacencyList.contains(line[i])) {
+                if (i > 0) {
+                    // if previous vertex is not already inside i's adjacency list, add previous vertex
+                    if (std::find(adjacencyList.at(line[i]).begin(), adjacencyList.at(line[i]).end(), line[i-1]) == adjacencyList.at(line[i]).end()) adjacencyList.at(line[i]).push_back(line[i-1]);
+                }
+                if (i < line.size() - 1) {
+                    // if next vertex is not already inside i's adjacency list, add next vertex
+                    if (std::find(adjacencyList.at(line[i]).begin(), adjacencyList.at(line[i]).end(), line[i+1]) == adjacencyList.at(line[i]).end()) adjacencyList.at(line[i]).push_back(line[i+1]);
+                }
+            }else {
+                if (i == 0) adjacencyList.insert({line[i], {line[i+1]}});
+                else if (i == line.size()-1) adjacencyList.insert({line[i], {line[i-11]}});
+                else adjacencyList.insert({line[i], {line[i-1], line[i+1]}});
+            }
+        }
     }
 }
 
@@ -671,8 +744,8 @@ void Mesh::computeUndecidedTriangles() {
         if (abs(v1 - v2) > 1) continue; // only consider the case where shared edge is on the same stroke
         vector<Vector3i> triangles = i->second;
         // loop through all triangles and check them pairwise
-        for (Vector3i t1 : triangles) {
-            for (Vector3i t2 : triangles) {
+        for (Vector3i &t1 : triangles) {
+            for (Vector3i &t2 : triangles) {
                 int v3, v4;
                 // get v3 and v4
                 if (t1[0] != v1 && t1[0] != v2) v3 = t1[0];
@@ -713,8 +786,8 @@ void Mesh::computeUndecidedTriangles() {
         int v = i->first;
         vector<Vector3i> triangles = i->second;
         // loop through all triangles and check them pairwise
-        for (Vector3i t1 : triangles) {
-            for (Vector3i t2 : triangles) {
+        for (Vector3i &t1 : triangles) {
+            for (Vector3i &t2 : triangles) {
                 // first check if they are on the same side of the stroke
                 // v1 and v2 belong to t1, v3 and v4 belong to t2
                 int v1, v2, v3, v4;
@@ -795,7 +868,121 @@ bool Mesh::checkOverlap(int v, int v1, int v2, int v3, int v4) {
     return count_false <= 1;
 }
 
+// --------------------- Section 6 ------------------------
+// --------------------- Get boundary matches ------------------------
+// A function that groups the vertices into components (connected partial surfaces)
+vector<vector<Vertex*>> Mesh::getComponents() {
+    // use the adjacency list to get components? should generate a vector<vector<int>> for a group of components
+    // dfs to get each component
+    int n = _vertices.size();
+    vector<bool> visited(n, false);
+    vector<vector<Vertex*>> components;
+    int num_components = 0;
+    for (int i = 0; i < _vertices.size(); i++) {
+        if(!visited[i]) {
+            // open a new vector to keep track of this new component
+            vector<Vertex*> component;
+            component.push_back(_vertices[i]);
+            _vertices[i]->componentIndex = num_components; // use the current number to index the vertex's component -- theoretically only need this
+            dfs(adjacencyList, visited, i, component, num_components); // this should populate the component
+            components.push_back(component);
+            num_components++;
+        }
+    }
+    std::cout << "Here in getComponents, total number of components is: " << num_components << std::endl;
+    return components;
+}
+// have: unordered_map<int, vector<int>> adjacencyList
+void Mesh::dfs(unordered_map<int, vector<int>> &adj, vector<bool> &visited, int src, vector<Vertex*> &component, int num_components) {
+    visited[src] = true;
+    for(int i : adj[src]) {
+        if(!visited[i]) {
+            component.push_back(_vertices[i]);
+            _vertices[i]->componentIndex = num_components; // theoretically only need this
+            dfs(adj, visited, i, component, num_components);
+        }
+    }
+}
 
+// now we can process each component individually and calculate its average match distance -- then store the distance in the Vertex too
+// first we need an easy way to identify which component a vertex belongs to -- assign a number? Yes suppose we already have this in componentIndex
+// just loop through all vertices and accumulate match distances
+void Mesh::getComponentMatchDistance() {
+    // make a map out of all componentIndex to the number of matches it contains, and its total sum of matching distance
+    unordered_map<int, pair<int, float>> componentIndex_dist;
+    for (int i = 0; i < _vertices.size(); i++) {
+        // std::cout << _vertices[i]->componentIndex << std::endl;
+        float matchDist = 0.0; // calculate the match distance from the vertex to its match -- avg of left and right matches
+        Vector3f pos1 = _vertices[i]->position;
+        if (leftMatch[i] != -1) {
+            Vector3f pos2 = _vertices[leftMatch[i]]->position;
+            matchDist = (pos1 - pos2).norm();
+            if (componentIndex_dist.contains(_vertices[i]->componentIndex)) {
+                componentIndex_dist[_vertices[i]->componentIndex].first++;
+                componentIndex_dist[_vertices[i]->componentIndex].second += matchDist;
+            }else {
+                // componentIndex_dist[_vertices[i]->componentIndex] = make_pair(1, matchDist);
+                componentIndex_dist.insert({_vertices[i]->componentIndex, make_pair(1, matchDist)});
+            }
+        }
+        if (rightMatch[i] != -1) {
+            Vector3f pos3 = _vertices[rightMatch[i]]->position;
+            matchDist = (pos1 - pos3).norm();
+            if (componentIndex_dist.contains(_vertices[i]->componentIndex)) {
+                componentIndex_dist[_vertices[i]->componentIndex].first++;
+                componentIndex_dist[_vertices[i]->componentIndex].second += matchDist;
+            }else {
+                // componentIndex_dist[_vertices[i]->componentIndex] = make_pair(1, matchDist);
+                componentIndex_dist.insert({_vertices[i]->componentIndex, make_pair(1, matchDist)});
+            }
+        }
+        if (leftMatch[i] == -1 && rightMatch[i] == -1) { // the point is isolated for now? What do we do?
+            // std::cout << _vertices[i]->componentIndex << std::endl;
+            continue; // just continue to the next vertex
+        }
+    }
+    // finally populate the map of component index to its average distance to be referenced by boundry vertices
+    for (const auto &myPair : componentIndex_dist) { // key, value = component index, pair of (num, sum_distance)
+        // componentIndex_avgDist[myPair.first] = myPair.second.second / (float) myPair.second.first;
+        componentIndex_avgDist.insert({myPair.first, myPair.second.second / (float) myPair.second.first});
+    }
+}
+
+// --------------------- Section 6 ------------------------
+// --------------------- start matching ------------------------
+// use componentIndex_avgDist and Vertex->componentIndex to get the corresponding average distance
+void Mesh::getBoundaryCandidates() {
+    // for each boundary vertex, loop through all other boundary vertices to get matches
+    // vector<pair<bool,vector<int>>> _boundaries
+    // If the vector represents a line, the bool is true. If the vector represents a cycle, the bool is false
+    // For cycles, the start index is listed at the end as well
+    for (auto & boundary_line : _boundaries) {
+        for (int i = 0; i < boundary_line.second.size(); i++) {
+            int boundary_vertex = boundary_line.second[i];
+            int neighbor1 = -1; int neighbor2 = -1;
+            if (boundary_line.first) { // it's a line
+                if (i == 0) neighbor1 = boundary_line.second[i+1];
+                else if (i == boundary_line.second.size()-1) neighbor1 = boundary_line.second[i-1];
+                else neighbor1 = boundary_line.second[i-1]; neighbor2 = boundary_line.second[i+1];
+            }else { // it's a cycle, then everyone has two neighbors
+                if (i == 0 || i == boundary_line.second.size()-1) {
+                    neighbor1 = boundary_line.second[i+1];
+                    neighbor2 = boundary_line.second[boundary_line.second.size()-2]; // second to last
+                } else {
+                    neighbor1 = boundary_line.second[i-1];
+                    neighbor2 = boundary_line.second[i+1];
+                }
+            }
+            // loop through all other boundary vertices to check candidacy: except itself and its two neighbors on the same boundary stroke
+
+        }
+    }
+
+}
+
+bool Mesh::doBoundaryTwoPointsMatch(int p, int q) {
+
+}
 
 
 // --------------------- Get matches functions ------------------------
@@ -808,7 +995,7 @@ void Mesh::calculateTangentsAndBinormals(const vector<Vector3f> &vertices, const
         // loop through all vertices on the line
         Vector3f first_tangent = (vertices[line[1]] - vertices[line[0]]).normalized(); // tangent of the first vertex is just the line segment direction
         _vertices[line[0]]->tangent = first_tangent;
-        _vertices[line[0]]->binormal = first_tangent.cross(vertexNormals[line[0]]);
+        _vertices[line[0]]->binormal = first_tangent.cross(vertexNormals[line[0]]).normalized();
 
         for (int i = 1; i < n - 1; i++)
         {
@@ -821,14 +1008,12 @@ void Mesh::calculateTangentsAndBinormals(const vector<Vector3f> &vertices, const
 
             Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
             _vertices[line[i]]->tangent = cur_tangent;
-            _vertices[line[i]]->binormal = cur_tangent.cross(vertexNormals[line[i]]);
+            _vertices[line[i]]->binormal = cur_tangent.cross(vertexNormals[line[i]]).normalized();
         }
         Vector3f last_tangent = (vertices[line[n - 1]] - vertices[line[n - 2]]).normalized(); // tangent of the last vertex is just the line segment direction
         _vertices[line[n - 1]]->tangent = last_tangent;
-        _vertices[line[n - 1]]->binormal = last_tangent.cross(vertexNormals[line[n - 1]]);
+        _vertices[line[n - 1]]->binormal = last_tangent.cross(vertexNormals[line[n - 1]]).normalized();
     }
-
-
 }
 
 float Mesh::vertexVertexScore(Vertex *P, Vertex *Q, bool leftside)
@@ -1402,7 +1587,7 @@ void addedge(unordered_map<int, vector<std::pair<float,int>>>* adjacencymap, int
     }
 }
 
-void doTrianglesShareEdge(Vector3i t1, Vector3i t2){
+bool doTrianglesShareEdge(Vector3i t1, Vector3i t2){
     //What is the best way to check if they share an edge?
     int shared = 0;
     for(int i = 0; i < 3; i++){
@@ -1461,6 +1646,415 @@ void Mesh::makeGraph(std::vector<Vector3i> trianglepatch){
         //Assign the weight based on the matching score
         float matchingweight = 0;
         addedge(&adjacencies, i, -1, matchingweight);
+    }
+}
+
+void Mesh::computeBoundaries(){
+    _boundaries.clear();
+
+    //TODO: remember what the heck you were cooking with wasfound and immediatelyfound
+
+    bool debugprint = false;
+
+    map<pair<int,int>,int> edgecounts;
+    //Accumulate a map that goes from int pairs to int counts.
+    for(int i = 0; i < _faces.size(); i++){
+        Vector3i currtriangle = sortvec(_faces[i]);
+        //Get each edge
+        pair<int,int> e01 = make_pair(currtriangle[0],currtriangle[1]);
+        pair<int,int> e12 = make_pair(currtriangle[1],currtriangle[2]);
+        pair<int,int> e02 = make_pair(currtriangle[0],currtriangle[2]);
+        if(edgecounts.contains(e01)){
+            edgecounts.at(e01) = edgecounts.at(e01) + 1;
+        }
+        else{
+            edgecounts.emplace(e01, 1);
+        }
+
+        if(edgecounts.contains(e12)){
+            edgecounts.at(e12) = edgecounts.at(e12) + 1;
+        }
+        else{
+            edgecounts.emplace(e12, 1);
+        }
+
+        if(edgecounts.contains(e02)){
+            edgecounts.at(e02) = edgecounts.at(e02) + 1;
+        }
+        else{
+            edgecounts.emplace(e02, 1);
+        }
+    }
+
+    //What now? Iterate through all of edgecounts and only keep the keys(pairs) that have a value of 1. Store them in a vector.
+    std::vector<pair<int,int>> boundarypairs = std::vector<pair<int,int>>();
+    int unchanged  = 0;
+    for (auto const& [key, val] : edgecounts){
+        if(val == 1){
+            boundarypairs.push_back(key);
+            // _vertices[key.first]->position = _vertices[key.first]->position + 0.05*_vertices[key.first]->normal;
+            // _vertices[key.second]->position = _vertices[key.second]->position + 0.05*_vertices[key.second]->normal;
+        }
+        else{
+            unchanged += 1;
+        }
+    }
+    std::cout << "Total number of boundary pairs: " + std::to_string(boundarypairs.size()) << std::endl;
+    //Now what? Try displacing every single set of boundary pairs. Like just scale them up or something.
+    std::cout << "Total number of non-boundary pairs: " + std::to_string(unchanged) << std::endl;
+
+    //Sick! We now have all boundary pairs. We now need to convert these pairs into polylines.
+    vector<pair<map<int,int>,vector<pair<int,int>>>> lineclumps = vector<pair<map<int,int>,vector<pair<int,int>>>>();
+
+    //Go through the vector of boundary pairs and put everything into a vector of pairs
+    for(int i = 0; i < boundarypairs.size(); i++){
+        pair<int,int> thepair = boundarypairs[i];
+
+        //Go through each clump. If it contains the pair, add it.
+        bool wasfound = false;
+
+        for(int j = 0; j < lineclumps.size(); j++){
+            bool immediatelyfound = false;
+            //Look for the pair in each of the lineclump maps. If you found it then you should increase the map value. Also add the pair to the right side
+
+            //So the issue here is that we're adding stuff before we finish incrementing.
+            //Incrementing should be one step, then adding stuff should be another step
+
+            if(lineclumps[j].first.contains(thepair.first)){
+                //If the clump contains the first element of the pair, increase its count
+                lineclumps[j].first.at(thepair.first) += 1;
+                wasfound = true;
+                immediatelyfound = true;
+                //Also add the second one
+                if(lineclumps[j].first.contains(thepair.second)){
+                    //If the clump contains the second element of the pair, add the pair to the map. Increase the pair's value
+                    lineclumps[j].first.at(thepair.second) += 1;
+                }
+            }
+            else if(lineclumps[j].first.contains(thepair.second)){
+                //If the clump contains the second element of the pair, add the pair to the map. Increase the pair's value
+                lineclumps[j].first.at(thepair.second) += 1;
+                wasfound = true;
+                immediatelyfound = true;
+                //Also add the first one
+                if(lineclumps[j].first.contains(thepair.first)){
+                    //If the clump contains the second element of the pair, add the pair to the map. Increase the pair's value
+                    lineclumps[j].first.at(thepair.first) += 1;
+                }
+            }
+
+            if(lineclumps[j].first.contains(thepair.first)){
+                if(!lineclumps[j].first.contains(thepair.second)){
+                    lineclumps[j].first.emplace(thepair.second, 1);
+                    // wasfound = true;
+                    // immediatelyfound = true;
+                }
+            }
+            if(lineclumps[j].first.contains(thepair.second)){
+                if(!lineclumps[j].first.contains(thepair.first)){
+                    lineclumps[j].first.emplace(thepair.first, 1);
+                    // wasfound = true;
+                    // immediatelyfound = true;
+                }
+            }
+            //If it was just now found, add it. Otherwise, don't
+            if(immediatelyfound){
+                lineclumps[j].second.push_back(thepair);
+            }
+        }
+
+        //If it wasn't found in any of the clumps, add it to a new clump
+        if(!wasfound){
+            map<int,int> newmap = map<int,int>();
+            newmap.emplace(thepair.first, 1);
+            newmap.emplace(thepair.second, 1);
+
+            vector<pair<int,int>> newpairlist = vector<pair<int,int>>();
+            newpairlist.push_back(thepair);
+
+            pair<map<int,int>,vector<pair<int,int>>> newclump = make_pair(newmap,newpairlist);
+            lineclumps.push_back(newclump);
+        }
+
+    }
+
+    // Now what? lineclumps should be full of stuff by now
+
+    vector<pair<pair<bool,int>,vector<pair<int,int>>>> line_cycles = vector<pair<pair<bool,int>,vector<pair<int,int>>>>();
+
+    for(int i = 0; i < lineclumps.size(); i++){
+        vector<pair<int,int>> thepairs = lineclumps[i].second;
+        int numones = 0;
+        string mapstring = "";
+        string pairstring = "";
+        bool brokeasf = false;
+        int startindex = -1;
+
+        for (auto const& [key, val] : lineclumps[i].first){
+            // mapstring = mapstring + "(" + to_string(key) + ": " + to_string(val) + ")";
+            if(val == 1){
+                numones += 1;
+                startindex = key;
+            }
+            if(val > 2){
+                brokeasf = true;
+            }
+        }
+        // for(int k = 0; k < thepairs.size(); k++){
+        //     pairstring = pairstring + "(" + to_string(thepairs[k].first) + ", " + to_string(thepairs[k].second) + ")";
+        // }
+        // Either it isn't brokeasf and has 2 numones
+        //Or it is brokeasf and has 0 numones
+        // cout << "Clump " + to_string(i) + " contains the following pairs: " + pairstring << endl;
+        // cout << "Clump " + to_string(i) + " contains the following map: " + mapstring << endl;
+
+
+        if((!brokeasf) && ((numones == 2) || numones == 0)){
+            line_cycles.push_back(make_pair(make_pair((numones == 2),startindex),thepairs));
+        }
+    }
+    //Line cycles is now full of vectors: bool followed by pairs. If it is a line then true. If it is a cycle then false.
+    //Now what? go through each line cycle, arbitrarily pick an end, and unspool it
+
+    //But first let's print each line cycle.
+    if(debugprint){
+        for(int i = 0; i < line_cycles.size(); i++){
+            string linestring = "";
+            string cycletype;
+            pair<pair<bool,int>,vector<pair<int,int>>> currcycle = line_cycles[i];
+            vector<pair<int,int>> pairs = currcycle.second;
+            for(int j = 0; j < pairs.size() ; j++){
+                linestring = linestring + "(" + to_string(pairs[j].first) + ", " + to_string(pairs[j].second) + ") ";
+            }
+            if(currcycle.first.first){
+                cycletype = "line";
+            }
+            else{
+                cycletype = "cycle";
+            }
+            cout << "entry " + to_string(i) + " is a " + cycletype + ". Starts at " + to_string(currcycle.first.second) + " and contains: " + linestring << endl;
+        }
+    }
+
+    //Sick. Now let's shove all of this stuff into another function to turn these into proper lines/cycles.
+    //What do we want at the end? A vector of pair<bool, vector<int>>. Push directly into _boundaries
+    for(int i = 0; i < line_cycles.size(); i++){
+        pair<pair<bool,int>,vector<pair<int,int>>> currcycle = line_cycles[i];
+        //Identify the starting pair if it is a line or a cycle.
+        vector<pair<int,int>> remainingpairs = currcycle.second;
+
+        vector<int> sorted_indices = vector<int>();
+        int taildex;
+        if(currcycle.first.first){
+            sorted_indices.push_back(currcycle.first.second);
+            taildex = currcycle.first.second;
+        }
+        else{
+            sorted_indices.push_back(remainingpairs[0].first);
+            taildex = remainingpairs[0].first;
+        }
+
+        //DONE I have a feeling we can streamline the above code so it doesn't have to happen twice. Just set taildex and enter the loop.
+        //Ok. We have now erased an element from remainingpairs. Should be good to iterate.
+
+        //Do this while there are still pairs left
+
+        // cout << "Entering while loop with the following pairs: " << endl;
+        // if(debugprint){
+        //     string linestring = "";
+        //     for(int j = 0; j < remainingpairs.size(); j++){
+        //         linestring = linestring + "(" + to_string(remainingpairs[j].first) + ", " + to_string(remainingpairs[j].second) + ") ";
+        //     }
+        //     cout << "Cycleline contains: " + linestring << endl;
+        // }
+        int loopnum = 0;
+        while(remainingpairs.size() > 0){
+            loopnum +=1;
+            // cout << "Loop number: " + to_string(loopnum) + " Remaining pairs: " + to_string(remainingpairs.size()) << endl;
+            //Find the pair containing taildex
+            for(int j = 0; j < remainingpairs.size(); j++){
+                //Does the current pair contain taildex? If so, add its last element and update taildex. Then remove it.
+                if(remainingpairs[j].first == taildex){
+                    sorted_indices.push_back(remainingpairs[j].second);
+                    taildex = remainingpairs[j].second;
+                    remainingpairs.erase(remainingpairs.begin() + j);
+                    break;
+                }
+                else if(remainingpairs[j].second == taildex){
+                    sorted_indices.push_back(remainingpairs[j].first);
+                    taildex = remainingpairs[j].first;
+                    remainingpairs.erase(remainingpairs.begin() + j);
+                    break;
+                }
+            }
+        }
+        //Now what? sorted_indices should be fully populated by now. Add it to _boundaries.
+        _boundaries.push_back(make_pair(currcycle.first.first, sorted_indices));
+    }
+    //Boundaries should now be fully populated. Print all boundaries.
+    if(debugprint){
+        for(int i = 0; i < _boundaries.size(); i++){
+            string intstring = "";
+            for(int j = 0; j < _boundaries[i].second.size(); j++){
+                intstring = intstring + to_string(_boundaries[i].second[j]) + ", ";
+            }
+            string linetype;
+            if(_boundaries[i].first){
+                linetype = "line";
+            }
+            else{
+                linetype = "cycle";
+            }
+
+            cout << linetype + " " + to_string(i) + " contains the following indices: [" + intstring + "]" << endl;
+        }
+    }
+
+    cout << "Boundary computation finished: Located " + to_string(_boundaries.size()) + " boundaries." << endl;
+}
+
+//Now what? Time to actually smooth the boundaries
+void Mesh::smoothBoundaries(){
+    //Chloe supposedly made a map from edges to faces. We will need that here
+    //Go through each boundary string and find the new vertex positions of each vertex
+    //After that, if it is a cycle, smooth the end vertex.
+    //Note: _boundaries lists the start index at the end as well if it is a cycle. Just remember that
+
+    for(int i = 0; i < _boundaries.size(); i++){
+        pair<bool,vector<int>> currboundary = _boundaries[i];
+        //If currboundary's size is 2 then don't do anything
+
+        map<int,Vector3f> newpositions = map<int,Vector3f>();
+
+        if(currboundary.second.size() > 2){
+            for(int j = 1; j < currboundary.second.size()-1; j++){
+                //Start at the second entry and finish at the second to last one.
+                Vector3f pj = _vertices[currboundary.second[j]]->position;
+                Vector3f pjminus = _vertices[currboundary.second[j-1]]->position;
+                Vector3f pjplus = _vertices[currboundary.second[j+1]]->position;
+                Vector3f new_position = 0.5*pj + 0.25*(pjminus + pjplus);
+
+                newpositions.emplace(currboundary.second[j], new_position);
+            }
+            //Now what? If it is a cycle then you should do the first vertex too. It's previous is the second to last
+
+            if(!currboundary.first){
+                Vector3f pj = _vertices[currboundary.second[0]]->position;
+                Vector3f pjminus = _vertices[currboundary.second[currboundary.second.size()-2]]->position;
+                Vector3f pjplus = _vertices[currboundary.second[1]]->position;
+                Vector3f new_position = 0.5*pj + 0.25*(pjminus + pjplus);
+
+                //TODO: Do a check here to see if changing this would actually break anything.
+                //First we need that map that goes from edges to triangles
+                // map<pair<int,int>,vector<Vector3i>> edges_to_triangles;
+
+                Vector3i oldtriminus = edges_to_triangles.at(sortpair(currboundary.second[0], currboundary.second[currboundary.second.size()-2]))[0];
+                Vector3i oldtriplus = edges_to_triangles.at(sortpair(currboundary.second[0], currboundary.second[1]))[0];
+
+                Vector3f oldminusnorm = getnorm(_vertices[oldtriminus[0]]->position,_vertices[oldtriminus[1]]->position,_vertices[oldtriminus[2]]->position);
+                Vector3f oldplusnorm = getnorm(_vertices[oldtriplus[0]]->position,_vertices[oldtriplus[1]]->position,_vertices[oldtriplus[2]]->position);
+
+                //Get the old triangles and their normals
+
+                // If it doesn't break use it
+                //If if does break use pj
+                newpositions.emplace(currboundary.second[0], new_position);
+                //Now what? Make triangles out of these new positions
+
+                //We have to make a vector of vector3fs from the old triangle but swapping out the index that wasn't the first two with the old position.
+                //Is there any better way to do this? I don't think so because the order has to be the same
+                vector<Vector3f> newminuspositions;
+                vector<Vector3f> newpluspositions;
+                for(int k = 0; k < 3; k++){
+                    //Check if it's equal to uhhhhhhh currboundarysecond or currboundary second size minus 2
+                    if((oldtriminus[k] == currboundary.second[0]) || (oldtriminus[k] ==  currboundary.second[currboundary.second.size()-2])){
+                        //If it's equal then use the new one.
+                        newminuspositions.push_back(newpositions.at(oldtriminus[k]));
+                    }
+                    else{
+                        //Otherwise use the old position.
+                        newminuspositions.push_back(_vertices[oldtriminus[k]]->position);
+                    }
+
+                    if((oldtriplus[k] == currboundary.second[0]) || (oldtriplus[k] ==  currboundary.second[1])){
+                        //If it's equal then use the new one.
+                        newpluspositions.push_back(newpositions.at(oldtriplus[k]));
+                    }
+                    else{
+                        //Otherwise use the old position.
+                        newpluspositions.push_back(_vertices[oldtriplus[k]]->position);
+                    }
+                }
+
+                Vector3f newminusnorm = getnorm(newminuspositions[0],newminuspositions[1],newminuspositions[2]);
+                Vector3f newplusnorm = getnorm(newpluspositions[0], newpluspositions[1], newpluspositions[2]);
+
+                //Now we just need to take the difference in norms! See if it changes much
+                if((acos(oldminusnorm.dot(newminusnorm)) > M_PI*0.24) || (acos(oldplusnorm.dot(newplusnorm)) > M_PI*0.24)){
+                    //Then don't use the new position. Keep the old position for the jth thing
+                    // cout << "It is too bent" << endl;
+                    newpositions.emplace(currboundary.second[0], _vertices[currboundary.second[0]]->position);
+                }
+                else{
+                    // cout << "It is ok " << endl;
+                }
+            }
+
+            //Sweet. By now, newpositions should all be filled. Update vertex positions
+            for (auto const& [key, val] : newpositions){
+                //Update the keyth position in vertices with val
+                _vertices[key]->position = val;
+            }
+        }
+    }
+}
+
+// re-calculate boundary binormals that point out from the surface
+// process each boundary in vector<pair<bool,vector<int>>> _boundaries, first recalculating tangents
+void Mesh::getNewBoundaryBinormals() {
+    // If the vector represents a line, the bool is true. If the vector represents a cycle, the bool is false
+    // For cycles, the start index is listed at the end as well
+    for (auto & boundary_line : _boundaries) {
+        for (int i = 0; i < boundary_line.second.size(); i++) {
+            int boundary_vertex = boundary_line.second[i];
+            int neighbor1 = -1; int neighbor2 = -1;
+            vector<int> line = boundary_line.second;
+            int n = line.size();
+            if (boundary_line.first) { // it's a line
+                // get new tangents
+                // loop through all vertices on the line
+                Vector3f first_tangent = (_vertices[line[1]]->position - _vertices[line[0]]->position).normalized(); // tangent of the first vertex is just the line segment direction
+                _vertices[line[0]]->boundary_tangent = first_tangent;
+                _vertices[line[0]]->boundary_binormal = first_tangent.cross(_vertices[line[0]]->normal).normalized();
+                // check that the binormal is pointing outwards: get a random triangle at vertex line[0]
+                // unordered_map<int, vector<Vector3i>> vertexToTriangles;
+                Vector3i tri = vertexToTriangles.at(line[0])[0];
+                if (tri[0] != line[0]) {
+
+                }
+
+                for (int i = 1; i < n - 1; i++)
+                {
+                    Vector3f curA = _vertices[line[i - 1]]->position;
+                    Vector3f curB = _vertices[line[i]]->position;
+                    Vector3f curC = _vertices[line[i + 1]]->position;
+                    Vector3f AC = curC - curA;
+                    Vector3f B_normal = _vertices[line[i]]->normal;
+                    Vector3f AC_parallel = AC.dot(B_normal) / (B_normal.norm() * B_normal.norm()) * B_normal; // AC projected onto the direction of normal
+
+                    Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
+                    _vertices[line[i]]->boundary_tangent = cur_tangent;
+                    _vertices[line[i]]->boundary_binormal = cur_tangent.cross(_vertices[line[i]]->normal).normalized();
+                }
+                Vector3f last_tangent = (_vertices[line[n - 1]]->position - _vertices[line[n - 2]]->position).normalized(); // tangent of the last vertex is just the line segment direction
+                _vertices[line[n - 1]]->boundary_tangent = last_tangent;
+                _vertices[line[n - 1]]->boundary_binormal = last_tangent.cross(_vertices[line[n - 1]]->normal).normalized();
+
+            }else { // it's a cycle
+
+            }
+
+        }
     }
 }
 

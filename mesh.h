@@ -25,7 +25,14 @@ typedef struct Vertex
     Vector3f tangent; // tangent vector
     Vector3f normal;  // normal vector
     Vector3f binormal; // binormal vector
+
+    // ------- For gap filling -------------
+    Vector3f boundary_tangent; // tangent vector
+    Vector3f boundary_binormal;  // binormal vector
+
     float strokeWidth;
+    int componentIndex;
+    float componentMatchDistance; // average match distance of the component that this vertex belongs to
     // constructor with all fields
     Vertex(Vector3f _position, bool _isActive, Vector3f _tangent, Vector3f _normal, float _strokeWidth)
         : position(_position), isActive(_isActive), tangent(_tangent), normal(_normal), strokeWidth(_strokeWidth){};
@@ -55,6 +62,17 @@ public:
 
     void cleanUp(); // perform any cleaning up at the end
 
+
+    // ----- the following sec6 functions should all be private once we have some public function that calls them, but for now they are public
+    // ------- Section 6: Matching
+    vector<vector<Vertex*>> getComponents();
+    void dfs(unordered_map<int, vector<int>> &adj, vector<bool> &visited, int src, vector<Vertex*> &component, int num_components);
+    void getComponentMatchDistance();
+
+    // ------- Get boundary points
+    void computeBoundaries();
+    void smoothBoundaries();
+
 private:
     // settings
     Settings *settings;
@@ -63,6 +81,7 @@ private:
     vector<Vertex *> _vertices;
     vector<vector<int>> _lines;
     vector<Vector3i> _faces;
+
     // ------- match computation
     unordered_map<int, int> leftMatch; // if the value is -1 then it doesn't have a match
     unordered_map<int, int> rightMatch;
@@ -81,10 +100,21 @@ private:
     // ------- Section 5.4: Manifold consolidation
     map<std::pair<int, int>, vector<Vector3i>> edgeToTriangles;
     unordered_map<int, vector<Vector3i>> vertexToTriangles;
+    unordered_map<int, vector<int>> adjacencyList;
     vector<vector<Vector3i>> undecidedTriangles;
+    map<pair<int,int>,vector<Vector3i>> edges_to_triangles;
 
     // -- sec 5.4 debug --
     std::set<int> undecided_vertices;
+
+    // ------- Section 6: Closing the Gaps
+    unordered_map<int, float> componentIndex_avgDist;
+    void addedgetotrimap(int x, int y, Vector3i thetriangle);
+
+    // ------- Get boundary points
+    // If the vector represents a line, the bool is true. If the vector represents a cycle, the bool is false
+    // For cycles, the start index is listed at the end as well
+    vector<pair<bool,vector<int>>> _boundaries;
 
     // helpers
     vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
@@ -107,6 +137,10 @@ private:
 
     // ------- Section 5.4: Manifold consolidation
     void populateTriangleMaps();
-
     bool checkOverlap(int v, int v1, int v2, int v3, int v4);
+
+    // ------- Section 6:
+    void getBoundaryCandidates();
+    void getNewBoundaryBinormals();
+
 };
