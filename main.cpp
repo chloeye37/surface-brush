@@ -75,8 +75,10 @@ int main(int argc, char *argv[])
     std::cout << "Generated mesh strips." << std::endl;
 
     // ------ Debug undecided triangle generation --------
-    m.computeUndecidedTriangles();
-    std::cout << "Computed undecided triangles." << std::endl;
+//    m.computeUndecidedTriangles();
+//    std::cout << "Computed undecided triangles." << std::endl;
+    m.manifoldConsolidation();
+    std::cout << "Fixed mesh to be a manifold mesh." << std::endl;
 
 
     // Finish timing
@@ -91,7 +93,7 @@ int main(int argc, char *argv[])
     //between edges are directed(Chloe knows about this). One way to make sure we don't double coumt faces is to make a hash
     //out of each face's indices
     m.debugSaveToFile();
-    // m.debugUndecidedTrianglesSaveToFile();
+//    m.debugUndecidedTrianglesSaveToFile();
     std::cout << "Saved to file." << std::endl;
 
     // Clean up

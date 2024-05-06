@@ -4,6 +4,7 @@
 
 #include <string>
 #include <QtCore>
+using namespace std;
 
 // singleton
 // not for multithread program
@@ -30,5 +31,15 @@ public:
     bool isDebug = false;
     int noOfNearEndVerticesToConsider = 3;
 };
+
+namespace utils {
+    // using Anh's code from Mesh
+    // Elegant pairing & unpairing of 2 NON-NEGATIVE INTEGERS
+    // reference: http://szudzik.com/ElegantPairing.pdf
+    // REMINDER: when using this in this project, always pass in x < y
+    int elegantPair(int x, int y);
+
+    pair<int,int> elegantUnpair(int z);
+}
 
 #endif // UTILS_H

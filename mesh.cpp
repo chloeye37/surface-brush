@@ -3,7 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <array>
-
+#include <deque>
 
 #include <QFileInfo>
 #include <QString>
@@ -31,7 +31,7 @@ void Mesh::loadFromFile()
     vector<vector<int>> lines = this->parseToPolyline(lineSegments);
 
     // load ply file
-    vector<pair<Vector3f,float>> normalsAndStrokeWidths = plyLoader::loadFromFile(this->settings->inPlyFile);
+    vector<pair<Vector3f, float>> normalsAndStrokeWidths = plyLoader::loadFromFile(this->settings->inPlyFile);
 
     // populate the _vertices vector
     vector<Vertex *> m_vertices;
@@ -39,6 +39,7 @@ void Mesh::loadFromFile()
     {
         Vertex *vertex = new Vertex(vertices[i], true, normalsAndStrokeWidths[i].first, normalsAndStrokeWidths[i].second);
         // vertex.tangent is set later in calculateTangents()
+        // vertex line index is set later in preprocessLines()
         m_vertices.push_back(vertex);
     }
 
@@ -46,7 +47,8 @@ void Mesh::loadFromFile()
     this->_vertices = m_vertices;
 
     std::vector<Vector3f> normals = std::vector<Vector3f>();
-    for(int i = 0; i < normalsAndStrokeWidths.size(); i++){
+    for (int i = 0; i < normalsAndStrokeWidths.size(); i++)
+    {
         normals.push_back(normalsAndStrokeWidths[i].first);
     }
 
@@ -97,47 +99,60 @@ void Mesh::saveToFile()
     outMeshFile.close();
 }
 
-Vector3i sortvec(Vector3i vec){
+Vector3i sortvec(Vector3i vec)
+{
     int a = vec[0];
     int b = vec[1];
     int c = vec[2];
-    if(a<=b && a<=c){
-        if(b < c){
-            return Vector3i(a,b,c);
+    if (a <= b && a <= c)
+    {
+        if (b < c)
+        {
+            return Vector3i(a, b, c);
         }
-        else{
-            return Vector3i(a,c,b);
-        }
-    }
-    else if(b <= a && b <= c){
-        if(a < c){
-            return Vector3i(b,a,c);
-        }
-        else{
-            return Vector3i(b,c,a);
+        else
+        {
+            return Vector3i(a, c, b);
         }
     }
-    else{
-        if(a < b){
-            return Vector3i(c,a,b);
+    else if (b <= a && b <= c)
+    {
+        if (a < c)
+        {
+            return Vector3i(b, a, c);
         }
-        else{
-            return Vector3i(c,b,a);
+        else
+        {
+            return Vector3i(b, c, a);
+        }
+    }
+    else
+    {
+        if (a < b)
+        {
+            return Vector3i(c, a, b);
+        }
+        else
+        {
+            return Vector3i(c, b, a);
         }
     }
 }
 
-int tohash(Vector3i k, int N){
+int tohash(Vector3i k, int N)
+{
     Vector3i sortedvec = sortvec(k);
-    return sortedvec[0]*N*N + sortedvec[1]*N + sortedvec[2];
+    return sortedvec[0] * N * N + sortedvec[1] * N + sortedvec[2];
 }
 
-int dig(int x, int i, int N){
-    return ((x%static_cast<int>(pow(N,i+1)))-(x%static_cast<int>(pow(N,i))))/pow(N,i);
+int dig(int x, int i, int N)
+{
+    return ((x % static_cast<int>(pow(N, i + 1))) - (x % static_cast<int>(pow(N, i)))) / pow(N, i);
 }
 
-Vector3i fromhash(int x, int N){
-    return Vector3i(dig(x,2,N),  dig(x,1,N), dig(x,0,N));
+Vector3i fromhash(int x, int N)
+{
+    return Vector3i(dig(x, 2, N), dig(x, 1, N), dig(x, 0, N));
 }
 
 void Mesh::debugSaveToFile()
@@ -167,45 +182,52 @@ void Mesh::debugSaveToFile()
         }
     }
     // Write a line segment if there is a match between two points
-    for (size_t i = 0; i < _vertices.size(); i++)
-    {
-        if (leftMatch.contains(i))
-        {
-            if (leftMatch.at(i) != -1)
-            {
-                outStrokeFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
-                outMeshFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
-            }
-        }
-        if (rightMatch.contains(i))
-        {
-            if (rightMatch.at(i) != -1)
-            {
-                outStrokeFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
-                outMeshFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
-            }
-        }
-    }
+    //    for (size_t i = 0; i < _vertices.size(); i++)
+    //    {
+    //        if (leftMatch.contains(i))
+    //        {
+    //            if (leftMatch.at(i) != -1)
+    //            {
+    //                outStrokeFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
+    //                outMeshFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
+    //            }
+    //        }
+    //        if (rightMatch.contains(i))
+    //        {
+    //            if (rightMatch.at(i) != -1)
+    //            {
+    //                outStrokeFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
+    //                outMeshFile << "l " << i + 1 << " " << rightMatch.at(i) + 1 << endl;
+    //            }
+    //        }
+    //    }
 
-    //Look at all face hashes
-    std::vector<int> facehashes = std::vector<int>();
-    for(int i = 0; i < _faces.size(); i++){
-        if((_faces[i][0]==_faces[i][1]) || (_faces[i][1]==_faces[i][2]) || (_faces[i][2]==_faces[i][0])){
-            // std::cout << "Duplicate vertices! " + std::to_string(_faces[i][0]) + ", " + std::to_string(_faces[i][1]) + ", " + std::to_string(_faces[i][2]) << std::endl;
-        }
-    }
+    // Look at all face hashes
+    //    std::vector<int> facehashes = std::vector<int>();
+    //    for (int i = 0; i < _faces.size(); i++)
+    //    {
+    //        if ((_faces[i][0] == _faces[i][1]) || (_faces[i][1] == _faces[i][2]) || (_faces[i][2] == _faces[i][0]))
+    //        {
+    //            // std::cout << "Duplicate vertices! " + std::to_string(_faces[i][0]) + ", " + std::to_string(_faces[i][1]) + ", " + std::to_string(_faces[i][2]) << std::endl;
+    //        }
+    //    }
 
-    // Write faces (MESH ONLY)
+    // Write faces (MESH ONLY) & boundaries of faces (STROKE ONLY)
     for (size_t i = 0; i < _faces.size(); i++)
     {
         const Vector3i &f = _faces[i];
         outMeshFile << "f " << (f[0] + 1) << " " << (f[1] + 1) << " " << (f[2] + 1) << endl;
+        int v1 = f[0] + 1;
+        int v2 = f[1] + 1;
+        int v3 = f[2] + 1;
+        outStrokeFile << "l " << v1 << " " << v2 << endl;
+        outStrokeFile << "l " << v2 << " " << v3 << endl;
+        outStrokeFile << "l " << v1 << " " << v3 << endl;
     }
 
     outStrokeFile.close();
     outMeshFile.close();
 }
-
 
 void Mesh::debugUndecidedTrianglesSaveToFile()
 {
@@ -220,28 +242,33 @@ void Mesh::debugUndecidedTrianglesSaveToFile()
     vector<Vector3i> undecided_faces;
     unordered_map<int, int> old_to_new; // map of vertex indices from old (in _vertices) to new (in undecided_vertices)
     unordered_map<int, int> new_to_old;
-    for (auto & triangle_list : undecidedTriangles) {
-        for (auto triangle : triangle_list) {
+    for (auto &triangle_list : undecidedTriangles)
+    {
+        for (auto triangle : triangle_list)
+        {
             undecided_vertices.insert(triangle[0]);
             undecided_vertices.insert(triangle[1]);
             undecided_vertices.insert(triangle[2]);
         }
     }
     int new_index = 0;
-    for (auto vertex : undecided_vertices) {
+    for (auto vertex : undecided_vertices)
+    {
         new_vertex_list.push_back(new_index);
         old_to_new.insert({vertex, new_index});
         new_to_old.insert({new_index, vertex});
         new_index++;
     }
-    for (auto new_vertex : new_vertex_list) {
+    for (auto new_vertex : new_vertex_list)
+    {
         outMeshFile << "v " << _vertices[new_to_old.at(new_vertex)]->position[0] << " " << _vertices[new_to_old.at(new_vertex)]->position[1] << " " << _vertices[new_to_old.at(new_vertex)]->position[2] << endl;
         outStrokeFile << "v " << _vertices[new_to_old.at(new_vertex)]->position[0] << " " << _vertices[new_to_old.at(new_vertex)]->position[1] << " " << _vertices[new_to_old.at(new_vertex)]->position[2] << endl;
     }
 
-
-    for (auto & triangle_list : undecidedTriangles) {
-        for (auto triangle : triangle_list) {
+    for (auto &triangle_list : undecidedTriangles)
+    {
+        for (auto triangle : triangle_list)
+        {
 
             // then write lines
             outMeshFile << "l " << (old_to_new.at(triangle[0]) + 1) << " " << (old_to_new.at(triangle[1]) + 1) << endl;
@@ -390,10 +417,15 @@ void Mesh::preprocessLines()
     }
     this->_lines = final_lines;
 
-    //NEW NEW NEW NEW
-    for(int i = 0; i < this->_lines.size(); i++){
-        for(int j = 0; j < (this->_lines[i]).size(); j++){
-            vertsToStrokes.emplace(this->_lines[i][j], i);
+    // NEW NEW NEW NEW
+    // also, add lineIndex here for vertices
+    for (int i = 0; i < this->_lines.size(); i++)
+    {
+        for (int j = 0; j < (this->_lines[i]).size(); j++)
+        {
+            int vertexIndex = this->_lines[i][j];
+            vertsToStrokes.emplace(vertexIndex, i);
+            this->_vertices[vertexIndex]->lineIndex = i;
         }
     }
 }
@@ -511,42 +543,53 @@ void Mesh::getRestrictedMatchingCandidates()
     }
 }
 
-void Mesh::meshStripGeneration() {
+void Mesh::meshStripGeneration()
+{
     unordered_set<int> trihashes;
 
-    for(int i = 0; i < _lines.size(); i++){
-        //Go through the stroke
+    for (int i = 0; i < _lines.size(); i++)
+    {
+        // Go through the stroke
         std::vector<int> currstroke = _lines[i];
-        for(int j = 0; j < currstroke.size() - 1; j++){
-            //Go through each vertex
+        for (int j = 0; j < currstroke.size() - 1; j++)
+        {
+            // Go through each vertex
             int pi = currstroke[j];
-            //Check if the next vertex even exists
-            if(leftMatch.contains(pi) && leftMatch.contains(pi+1)){
+            // Check if the next vertex even exists
+            if (leftMatch.contains(pi) && leftMatch.contains(pi + 1))
+            {
                 int qi = leftMatch.at(pi);
-                int qn = leftMatch.at(pi+1);
-                if((qi >= 0)&&(qn >= 0) && (vertsToStrokes.at(qi) == vertsToStrokes.at(qn))){
-                    //Both this and the next vertex have matches.
-                    std::vector<Vector3i> outtriangles = triangulatePair(pi,qi,pi+1,qn);
-                    for(int k = 0; k < outtriangles.size(); k ++){
-                        //Check if the triangle exists already
-                        int trihash = tohash(outtriangles[k],_vertices.size());
-                        if(!trihashes.contains(trihash)){
+                int qn = leftMatch.at(pi + 1);
+                if ((qi >= 0) && (qn >= 0) && (vertsToStrokes.at(qi) == vertsToStrokes.at(qn)))
+                {
+                    // Both this and the next vertex have matches.
+                    std::vector<Vector3i> outtriangles = triangulatePair(pi, qi, pi + 1, qn);
+                    for (int k = 0; k < outtriangles.size(); k++)
+                    {
+                        // Check if the triangle exists already
+                        int trihash = tohash(outtriangles[k], _vertices.size());
+                        if (!trihashes.contains(trihash))
+                        {
                             _faces.push_back(outtriangles[k]);
                             trihashes.insert(trihash);
                         }
                     }
                 }
             }
-            if(rightMatch.contains(pi) && rightMatch.contains(pi+1)){
+            if (rightMatch.contains(pi) && rightMatch.contains(pi + 1))
+            {
                 int qi = rightMatch.at(pi);
-                int qn = rightMatch.at(pi+1);
-                if((qi >= 0)&&(qn >= 0) && (vertsToStrokes.at(qi) == vertsToStrokes.at(qn))){
-                    //Both this and the next vertex have matches.
-                    std::vector<Vector3i> outtriangles = triangulatePair(pi,qi,pi+1,qn);
-                    for(int k = 0; k < outtriangles.size(); k ++){
-                        //Check if the triangle exists already
-                        int trihash = tohash(outtriangles[k],_vertices.size());
-                        if(!trihashes.contains(trihash)){
+                int qn = rightMatch.at(pi + 1);
+                if ((qi >= 0) && (qn >= 0) && (vertsToStrokes.at(qi) == vertsToStrokes.at(qn)))
+                {
+                    // Both this and the next vertex have matches.
+                    std::vector<Vector3i> outtriangles = triangulatePair(pi, qi, pi + 1, qn);
+                    for (int k = 0; k < outtriangles.size(); k++)
+                    {
+                        // Check if the triangle exists already
+                        int trihash = tohash(outtriangles[k], _vertices.size());
+                        if (!trihashes.contains(trihash))
+                        {
                             _faces.push_back(outtriangles[k]);
                             trihashes.insert(trihash);
                         }
@@ -555,6 +598,37 @@ void Mesh::meshStripGeneration() {
             }
         }
     }
+}
+
+void Mesh::manifoldConsolidation()
+{
+    this->computeUndecidedTriangles();
+    vector<Vector3i> outputTriangles = this->outputTriangles();
+    // NOTE: LINE BELOW IS DEBUG ONLY
+    //    outputTriangles.clear();
+
+    for (int i = 0; i < this->undecidedTriangles.size(); i++)
+    {
+        vector<Vector3i> trianglePatch = this->undecidedTriangles[i];
+        unordered_map<int, unordered_set<int>> curPatchIncompatibleTriangles = this->incompatibleTriangles[i];
+        int rootNodeIndex = trianglePatch.size();
+        unordered_map<int, vector<pair<float, int>>> adjacencies = this->makeGraph(trianglePatch, curPatchIncompatibleTriangles);
+        this->GAEC(adjacencies);
+        // get all nodes that are connected to root node
+        vector<int> outputChildren = this->getNodesUnderSameParentFromUnionFind(rootNodeIndex);
+        // triangle indices in trianglePatch should be the same as node indices in adjacencies
+        for (int outputChild : outputChildren)
+        {
+            outputTriangles.push_back(trianglePatch[outputChild]);
+        }
+
+        // clear, prep for next graph
+        this->edgePriorityQueue.clear();
+        this->edgeCostMap.clear();
+        this->unionFindParentMap.clear();
+    }
+
+    this->_faces = outputTriangles;
 }
 
 void Mesh::cleanUp()
@@ -594,7 +668,7 @@ vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections)
     int strokedex = 0;
     while (index < sortedconns.size())
     {
-        //Add vertices to the vertsToStrokes map!
+        // Add vertices to the vertsToStrokes map! (NOTE: this is actually done later in preprocessLines)
         vector<int> currentpoly = std::vector<int>();
         currentpoly.push_back(sortedconns[index][0]);
         currentpoly.push_back(sortedconns[index][1]);
@@ -612,48 +686,68 @@ vector<vector<int>> Mesh::parseToPolyline(vector<Vector2i> connections)
     return polylines;
 }
 
-
-
 // --------------------- Section 5.4 ------------------------
 // --------------------- Get undecided triangle clusters ------------------------
 // A function to create a map that associates each vertex with its list of triangles, and a map that associates every edge with its triangles
-void Mesh::populateTriangleMaps() {
-    for (Vector3i triangle : _faces) {
+void Mesh::populateTriangleMaps()
+{
+    for (Vector3i triangle : _faces)
+    {
         // first populate unordered_map<std::pair<int, int>, Vector3i> edgeToTriangles
-        int v1 = triangle[0]; int v2 = triangle[1]; int v3 = triangle[2];
-        auto pair12 = v1 < v2 ? std::make_pair(v1,v2) : std::make_pair(v2,v1); // edge ordered by smaller vertex -- larger vertex
-        if (edgeToTriangles.contains(pair12)) {
+        int v1 = triangle[0];
+        int v2 = triangle[1];
+        int v3 = triangle[2];
+        auto pair12 = v1 < v2 ? std::make_pair(v1, v2) : std::make_pair(v2, v1); // edge ordered by smaller vertex -- larger vertex
+        if (edgeToTriangles.contains(pair12))
+        {
             edgeToTriangles.at(pair12).push_back(triangle);
-        }else {
+        }
+        else
+        {
             edgeToTriangles.insert({pair12, {triangle}});
         }
-        auto pair13 = v1 < v3 ? std::make_pair(v1,v3) : std::make_pair(v3,v1); // edge ordered by smaller vertex -- larger vertex
-        if (edgeToTriangles.contains(pair13)) {
+        auto pair13 = v1 < v3 ? std::make_pair(v1, v3) : std::make_pair(v3, v1); // edge ordered by smaller vertex -- larger vertex
+        if (edgeToTriangles.contains(pair13))
+        {
             edgeToTriangles.at(pair13).push_back(triangle);
-        }else {
+        }
+        else
+        {
             edgeToTriangles.insert({pair13, {triangle}});
         }
-        auto pair23 = v3 < v2 ? std::make_pair(v3,v2) : std::make_pair(v2,v3); // edge ordered by smaller vertex -- larger vertex
-        if (edgeToTriangles.contains(pair23)) {
+        auto pair23 = v3 < v2 ? std::make_pair(v3, v2) : std::make_pair(v2, v3); // edge ordered by smaller vertex -- larger vertex
+        if (edgeToTriangles.contains(pair23))
+        {
             edgeToTriangles.at(pair23).push_back(triangle);
-        }else {
+        }
+        else
+        {
             edgeToTriangles.insert({pair23, {triangle}});
         }
 
         // then populate unordered_map<int, Vector3i> vertexToTriangles
-        if (vertexToTriangles.contains(v1)) {
+        if (vertexToTriangles.contains(v1))
+        {
             vertexToTriangles.at(v1).push_back(triangle);
-        }else {
+        }
+        else
+        {
             vertexToTriangles.insert({v1, {triangle}});
         }
-        if (vertexToTriangles.contains(v2)) {
+        if (vertexToTriangles.contains(v2))
+        {
             vertexToTriangles.at(v2).push_back(triangle);
-        }else {
+        }
+        else
+        {
             vertexToTriangles.insert({v2, {triangle}});
         }
-        if (vertexToTriangles.contains(v2)) {
+        if (vertexToTriangles.contains(v2))
+        {
             vertexToTriangles.at(v2).push_back(triangle);
-        }else {
+        }
+        else
+        {
             vertexToTriangles.insert({v2, {triangle}});
         }
     }
@@ -661,111 +755,295 @@ void Mesh::populateTriangleMaps() {
 
 // We have all the triangles (triangles: vector<int> = {v1, v2, v3}), need to identify the incompatible ones
 // Populates vector<vector<Vector3i>> undecidedTriangles
-void Mesh::computeUndecidedTriangles() {
+void Mesh::computeUndecidedTriangles()
+{
+    unordered_set<pair<Vector3i, Vector3i>, classcomp2> emptySet; // reusable empty set
+
     populateTriangleMaps();
     vector<vector<Vector3i>> res;
-    std::set<std::pair<int,int>> undecided_edges;
+    std::set<std::pair<int, int>> undecided_edges;
     // std::set<int> undecided_vertices;
     // Case (1) and (3): look for triangles that share one edge
-    for (auto i = edgeToTriangles.begin(); i != edgeToTriangles.end(); i++) {
+    for (auto i = edgeToTriangles.begin(); i != edgeToTriangles.end(); i++)
+    {
         auto cur_edge = i->first;
-        auto [v1,v2] = i->first;
-        if (abs(v1 - v2) > 1) continue; // only consider the case where shared edge is on the same stroke
+        auto [v1, v2] = i->first;
+        if (abs(v1 - v2) > 1)
+            continue; // only consider the case where shared edge is on the same stroke
         vector<Vector3i> triangles = i->second;
         // loop through all triangles and check them pairwise
-        for (Vector3i t1 : triangles) {
-            for (Vector3i t2 : triangles) {
+        for (Vector3i t1 : triangles)
+        {
+            for (Vector3i t2 : triangles)
+            {
                 int v3, v4;
                 // get v3 and v4
-                if (t1[0] != v1 && t1[0] != v2) v3 = t1[0];
-                else if (t1[1] != v1 && t1[1] != v2) v3 = t1[1];
-                else v3 = t1[2];
-                if (t2[0] != v1 && t2[0] != v2) v4 = t2[0];
-                else if (t2[1] != v1 && t2[1] != v2) v4 = t2[1];
-                else v4 = t2[2];
-                if (v3 == v4) continue; // same triangle...
+                if (t1[0] != v1 && t1[0] != v2)
+                    v3 = t1[0];
+                else if (t1[1] != v1 && t1[1] != v2)
+                    v3 = t1[1];
+                else
+                    v3 = t1[2];
+                if (t2[0] != v1 && t2[0] != v2)
+                    v4 = t2[0];
+                else if (t2[1] != v1 && t2[1] != v2)
+                    v4 = t2[1];
+                else
+                    v4 = t2[2];
+                if (v3 == v4)
+                    continue; // same triangle...
                 // Case (1): check if v3 and v4 are on different sides of the stroke
                 Vector3f edge = _vertices[v1]->position - _vertices[v2]->position;
                 Vector3f t1edge = _vertices[v3]->position - _vertices[v2]->position;
                 Vector3f t2edge = _vertices[v4]->position - _vertices[v2]->position;
-                if ((t1edge.dot(_vertices[v2]->binormal)) * (t2edge.dot(_vertices[v2]->binormal)) > 0) { // same side
+                if ((t1edge.dot(_vertices[v2]->binormal)) * (t2edge.dot(_vertices[v2]->binormal)) > 0)
+                { // same side
                     // mark this edge
                     undecided_edges.insert(cur_edge);
-                    // std::cout << "Edge shared. v1: " << v1 << " | v2: " << v2 << " | v3: " << v3  << " | v4: " << v4 << std::endl;
-                    // std::cout << "Edge shared: intersection" << std::endl;
+
+                    // add incompatible triangles to map
+                    int edgeEncoding = this->encodeEdge(cur_edge.first, cur_edge.second);
+                    if (!this->edgeIncompatibleTrianglesMap.contains(edgeEncoding))
+                    {
+                        this->edgeIncompatibleTrianglesMap[edgeEncoding] = emptySet;
+                    }
+                    unordered_set<pair<Vector3i, Vector3i>, classcomp2> incompatibleTriangleSet = this->edgeIncompatibleTrianglesMap.at(edgeEncoding);
+                    if (!incompatibleTriangleSet.contains(make_pair(t1, t2)) && !incompatibleTriangleSet.contains(make_pair(t2, t1)))
+                    {
+                        incompatibleTriangleSet.insert(make_pair(t1, t2));
+                        this->edgeIncompatibleTrianglesMap[edgeEncoding] = incompatibleTriangleSet;
+                    }
                 }
                 // Case (3): check if the dihedral angle is less than 45 degrees
                 // https://math.stackexchange.com/questions/47059/how-do-i-calculate-a-dihedral-angle-given-cartesian-coordinates
                 Vector3f b2 = edge;
-                Vector3f b1 = - t1edge;
+                Vector3f b1 = -t1edge;
                 Vector3f b3 = t2edge;
                 Vector3f n1 = b1.cross(b2).normalized();
                 Vector3f n2 = b2.cross(b3).normalized();
                 float x = n1.dot(n2);
                 float y = (n1.cross(b2.normalized())).dot(n2);
-                if (abs(atan2(y,x) * 180 / M_PI) < 45) { // less than 45 degrees
+                if (abs(atan2(y, x) * 180 / M_PI) < 45)
+                { // less than 45 degrees
                     undecided_edges.insert(cur_edge);
-                    // std::cout << "Edge shared: dihedral less than 45" << std::endl;
+
+                    // add incompatible triangles to map
+                    int edgeEncoding = this->encodeEdge(cur_edge.first, cur_edge.second);
+                    if (!this->edgeIncompatibleTrianglesMap.contains(edgeEncoding))
+                    {
+                        this->edgeIncompatibleTrianglesMap[edgeEncoding] = emptySet;
+                    }
+                    unordered_set<pair<Vector3i, Vector3i>, classcomp2> incompatibleTriangleSet = this->edgeIncompatibleTrianglesMap.at(edgeEncoding);
+                    if (!incompatibleTriangleSet.contains(make_pair(t1, t2)) && !incompatibleTriangleSet.contains(make_pair(t2, t1)))
+                    {
+                        incompatibleTriangleSet.insert(make_pair(t1, t2));
+                        this->edgeIncompatibleTrianglesMap[edgeEncoding] = incompatibleTriangleSet;
+                    }
                 }
             }
         }
     }
     // Case (2): look for triangles that share one vertex
-    for (auto i = vertexToTriangles.begin(); i != vertexToTriangles.end(); i++) {
+    for (auto i = vertexToTriangles.begin(); i != vertexToTriangles.end(); i++)
+    {
         int v = i->first;
         vector<Vector3i> triangles = i->second;
         // loop through all triangles and check them pairwise
-        for (Vector3i t1 : triangles) {
-            for (Vector3i t2 : triangles) {
+        for (Vector3i t1 : triangles)
+        {
+            for (Vector3i t2 : triangles)
+            {
                 // first check if they are on the same side of the stroke
                 // v1 and v2 belong to t1, v3 and v4 belong to t2
                 int v1, v2, v3, v4;
-                if (t1[0]==v) {
-                    v1 = t1[1]; v2 = t1[2];
-                }else if (t1[1]==v) {
-                    v1 = t1[0]; v2 = t1[2];
-                }else {
-                    v1 = t1[0]; v2 = t1[1];
+                if (t1[0] == v)
+                {
+                    v1 = t1[1];
+                    v2 = t1[2];
                 }
-                if (t2[0]==v) {
-                    v3 = t2[1]; v4 = t2[2];
-                }else if (t2[1]==v) {
-                    v3 = t2[0]; v4 = t2[2];
-                }else {
-                    v3 = t2[0]; v4 = t2[1];
+                else if (t1[1] == v)
+                {
+                    v1 = t1[0];
+                    v2 = t1[2];
                 }
-                if ((v1==v3 && v2==v4) || (v1==v4 && v2==v3)) continue; // same triangle
-                if (abs(v1-v2) > 1 || abs(v3-v4) > 1) continue; // non-consecutive edges for the opposite two edges
-                if (((_vertices[v1]->position - _vertices[v]->position).dot(_vertices[v2]->binormal)) * ((_vertices[v3]->position - _vertices[v]->position).dot(_vertices[v2]->binormal)) > 0) {
+                else
+                {
+                    v1 = t1[0];
+                    v2 = t1[1];
+                }
+                if (t2[0] == v)
+                {
+                    v3 = t2[1];
+                    v4 = t2[2];
+                }
+                else if (t2[1] == v)
+                {
+                    v3 = t2[0];
+                    v4 = t2[2];
+                }
+                else
+                {
+                    v3 = t2[0];
+                    v4 = t2[1];
+                }
+                if ((v1 == v3 && v2 == v4) || (v1 == v4 && v2 == v3))
+                    continue; // same triangle
+                if (abs(v1 - v2) > 1 || abs(v3 - v4) > 1)
+                    continue; // non-consecutive edges for the opposite two edges
+                if (((_vertices[v1]->position - _vertices[v]->position).dot(_vertices[v2]->binormal)) * ((_vertices[v3]->position - _vertices[v]->position).dot(_vertices[v2]->binormal)) > 0)
+                {
                     // same side of the stroke
                     // now check for projective overlap: v3 and v4 onto v1 and v2
                     bool overlap_res = checkOverlap(v, v1, v2, v3, v4);
-                    if (overlap_res) {
+                    if (overlap_res)
+                    {
                         undecided_vertices.insert(v);
-                        // std::cout << "triangle: " << t2[0] << " || " << t2[1] << " || " << t2[2] << std::endl;
-                        // std::cout << "Vertex shared: " << v << "| v1: " << v1 << " | v2: " << v2 << " | v3: " << v3  << " | v4: " << v4 << std::endl;
+
+                        // add incompatible triangles to map
+                        if (!this->vertexIncompatibleTrianglesMap.contains(v))
+                        {
+                            this->vertexIncompatibleTrianglesMap[v] = emptySet;
+                        }
+                        unordered_set<pair<Vector3i, Vector3i>, classcomp2> incompatibleTriangleSet = this->vertexIncompatibleTrianglesMap.at(v);
+                        if (!incompatibleTriangleSet.contains(make_pair(t1, t2)) && !incompatibleTriangleSet.contains(make_pair(t2, t1)))
+                        {
+                            incompatibleTriangleSet.insert(make_pair(t1, t2));
+                            this->vertexIncompatibleTrianglesMap[v] = incompatibleTriangleSet;
+                        }
                     }
                 }
-
             }
         }
     }
     std::cout << "Vertex shared: overlap: " << undecided_vertices.size() << " out of total of " << _vertices.size() << " vertices." << std::endl;
-    // std::cout << "Edge shared: " << undecided_edges.size() << " out of total of " << " edges." << std::endl;
     // combine all clusters and return it?
-    for (auto edge : undecided_edges) {
-        res.push_back(edgeToTriangles.at(edge));
-    }
-    for (auto vertex : undecided_vertices) {
-        res.push_back(vertexToTriangles.at(vertex));
-    }
-    undecidedTriangles = res;
+    //    for (auto edge : undecided_edges)
+    //    {
+    //        res.push_back(edgeToTriangles.at(edge));
+    //    }
+    //    for (auto vertex : undecided_vertices)
+    //    {
+    //        res.push_back(vertexToTriangles.at(vertex));
+    //    }
+    //    undecidedTriangles = res;
 
+    // NOTE: undecided_edges can be transformed into an unordered_set for faster performance
+    while (undecided_edges.size() + undecided_vertices.size() > 0)
+    {
+        cout << "loop with size " << undecided_edges.size() + undecided_vertices.size() << endl;
+        unordered_set<Vector3i, classcomp3> undecidedTrianglesCluster;
+        unordered_set<pair<Vector3i, Vector3i>, classcomp2> incompatibleTriangles; // that exist in this cluster
 
+        deque<pair<int, int>> unprocessed_undecided_edges;
+        deque<int> unprocessed_undecided_vertices;
+
+        // first item in either of the above deques
+        if (undecided_edges.size())
+        {
+            pair<int, int> first_undecided_edge = *undecided_edges.begin();
+            unprocessed_undecided_edges.push_back(first_undecided_edge);
+        }
+        else
+        {
+            int first_undecided_vertex = *undecided_vertices.begin();
+            unprocessed_undecided_vertices.push_back(first_undecided_vertex);
+        }
+
+        while (unprocessed_undecided_edges.size() + unprocessed_undecided_vertices.size())
+        {
+            cout << "subloop with size " << unprocessed_undecided_edges.size() + unprocessed_undecided_vertices.size() << endl;
+            while (unprocessed_undecided_edges.size())
+            {
+                cout << "unprocessed_undecided_edges subloop" << endl;
+                // the edge
+                pair<int, int> undecided_edge = unprocessed_undecided_edges.front();
+                unprocessed_undecided_edges.pop_front();
+                undecided_edges.erase(undecided_edge);
+
+                auto undecided_triangles = edgeToTriangles.at(undecided_edge);
+                undecidedTrianglesCluster.insert(undecided_triangles.begin(), undecided_triangles.end());
+                auto cur_incompatible_triangles = edgeIncompatibleTrianglesMap.at(this->encodeEdge(undecided_edge.first, undecided_edge.second));
+                incompatibleTriangles.insert(cur_incompatible_triangles.begin(), cur_incompatible_triangles.end());
+
+                // the edge's vertices
+                int undecided_vertex1 = undecided_edge.first;
+                int undecided_vertex2 = undecided_edge.second;
+                if (undecided_vertices.contains(undecided_vertex1))
+                {
+                    unprocessed_undecided_vertices.push_back(undecided_vertex1);
+                }
+                if (undecided_vertices.contains(undecided_vertex2))
+                {
+                    unprocessed_undecided_vertices.push_back(undecided_vertex2);
+                }
+            }
+
+            while (unprocessed_undecided_vertices.size())
+            {
+                cout << "unprocessed_undecided_vertices subloop" << endl;
+                // the vertex
+                int undecided_vertex = unprocessed_undecided_vertices.front();
+                unprocessed_undecided_vertices.pop_front();
+                undecided_vertices.erase(undecided_vertex);
+
+                auto undecided_triangles = vertexToTriangles.at(undecided_vertex);
+                undecidedTrianglesCluster.insert(undecided_triangles.begin(), undecided_triangles.end());
+                auto cur_incompatible_triangles = vertexIncompatibleTrianglesMap.at(undecided_vertex);
+                incompatibleTriangles.insert(cur_incompatible_triangles.begin(), cur_incompatible_triangles.end());
+
+                // the edges surrounding the vertex
+                // go through each undecided edge to find ones that has this vertex as its end
+                for (const pair<int, int> &edge : undecided_edges)
+                {
+                    if (edge.first == undecided_vertex || edge.second == undecided_vertex)
+                    {
+                        unprocessed_undecided_edges.push_back(edge);
+                    }
+                }
+            }
+            cout << "end of subloop with size " << unprocessed_undecided_edges.size() + unprocessed_undecided_vertices.size() << endl;
+        }
+
+        cout << "start creating cluster" << endl;
+        vector<Vector3i> undecidedTrianglesClusterVector(undecidedTrianglesCluster.begin(), undecidedTrianglesCluster.end());
+        unordered_map<Vector3i, int, classcomp3> triangleToIndexMap;
+        for (int i = 0; i < undecidedTrianglesClusterVector.size(); i++)
+        {
+            triangleToIndexMap[undecidedTrianglesClusterVector[i]] = i;
+        }
+        unordered_map<int, unordered_set<int>> incompatibleTrianglesMap;
+        for (const pair<Vector3i, Vector3i> &trianglePair : incompatibleTriangles)
+        {
+            int triangle1 = triangleToIndexMap.at(trianglePair.first);
+            int triangle2 = triangleToIndexMap.at(trianglePair.second);
+
+            if (!incompatibleTrianglesMap.contains(triangle1))
+            {
+                unordered_set<int> emptyTriangleSet;
+                incompatibleTrianglesMap[triangle1] = emptyTriangleSet;
+            }
+            unordered_set<int> triangle1Incompatibles = incompatibleTrianglesMap.at(triangle1);
+            triangle1Incompatibles.insert(triangle2);
+            incompatibleTrianglesMap[triangle1] = triangle1Incompatibles;
+
+            if (!incompatibleTrianglesMap.contains(triangle2))
+            {
+                unordered_set<int> emptyTriangleSet;
+                incompatibleTrianglesMap[triangle2] = emptyTriangleSet;
+            }
+            unordered_set<int> triangle2Incompatibles = incompatibleTrianglesMap.at(triangle2);
+            triangle2Incompatibles.insert(triangle1);
+            incompatibleTrianglesMap[triangle2] = triangle2Incompatibles;
+        }
+        this->undecidedTriangles.push_back(undecidedTrianglesClusterVector);
+        this->incompatibleTriangles.push_back(incompatibleTrianglesMap);
+        cout << "end creating cluster, with size " << undecided_edges.size() + undecided_vertices.size() << endl;
+    }
+    cout << "end creating all clusters" << endl;
 }
 
-
-bool Mesh::checkOverlap(int v, int v1, int v2, int v3, int v4) {
+bool Mesh::checkOverlap(int v, int v1, int v2, int v3, int v4)
+{
     Vector3f v1v = _vertices[v]->position - _vertices[v1]->position;
     Vector3f v2v = _vertices[v]->position - _vertices[v2]->position;
     Vector3f normal = v1v.cross(v2v); // normal of the triangle plane
@@ -784,21 +1062,26 @@ bool Mesh::checkOverlap(int v, int v1, int v2, int v3, int v4) {
     int count_false = 0;
     // Case 1 -- if all four booleans are true
     // v3 same v2 w.r.t. v1v  --> v1v3 and v1v2 same direction --> v1v3.dot(b_v1v) same sign as v1v2.dot(b_v1v)
-    bool v3_v2_v1v = v1v3.dot(b_v1v) * v1v2.dot(b_v1v) > 0; if (!v3_v2_v1v) count_false++;
+    bool v3_v2_v1v = v1v3.dot(b_v1v) * v1v2.dot(b_v1v) > 0;
+    if (!v3_v2_v1v)
+        count_false++;
     // v4 same v2 w.r.t. v1v
-    bool v4_v2_v1v = v1v4.dot(b_v1v) * v1v2.dot(b_v1v) > 0; if (!v4_v2_v1v) count_false++;
+    bool v4_v2_v1v = v1v4.dot(b_v1v) * v1v2.dot(b_v1v) > 0;
+    if (!v4_v2_v1v)
+        count_false++;
     // v3 same v1 w.r.t.v2v
-    bool v3_v1_v2v = v2v3.dot(b_v2v) * v2v1.dot(b_v2v) > 0; if (!v3_v1_v2v) count_false++;
+    bool v3_v1_v2v = v2v3.dot(b_v2v) * v2v1.dot(b_v2v) > 0;
+    if (!v3_v1_v2v)
+        count_false++;
     // v4 same v1 w.r.t.v2v
-    bool v4_v1_v2v = v2v4.dot(b_v2v) * v2v1.dot(b_v2v) > 0; if (!v4_v1_v2v) count_false++;
+    bool v4_v1_v2v = v2v4.dot(b_v2v) * v2v1.dot(b_v2v) > 0;
+    if (!v4_v1_v2v)
+        count_false++;
 
     // case 1: true, true, true, true -- 0 false
     // case 2,3,4,5: only 1 false
     return count_false <= 1;
 }
-
-
-
 
 // --------------------- Get matches functions ------------------------
 void Mesh::calculateTangentsAndBinormals(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals)
@@ -829,8 +1112,6 @@ void Mesh::calculateTangentsAndBinormals(const vector<Vector3f> &vertices, const
         _vertices[line[n - 1]]->tangent = last_tangent;
         _vertices[line[n - 1]]->binormal = (last_tangent.cross(vertexNormals[line[n - 1]])).normalized();
     }
-
-
 }
 
 float Mesh::vertexVertexScore(Vertex *P, Vertex *Q, bool leftside)
@@ -871,7 +1152,7 @@ float Mesh::vertexVertexScore(Vertex *P, Vertex *Q, bool leftside)
     Vector3f mpqprime = 0.5 * (pc + qc);
     Vector3f mpq = 0.5 * (p + q);
     float dln = (mpq - mpqprime).norm();
-    float sigma = 1.5f/2.f*(pStrokeWidth + qStrokeWidth);
+    float sigma = 1.5f / 2.f * (pStrokeWidth + qStrokeWidth);
     float finalscore = exp(-pow(da + dt + dln, 2) / (2.f * pow(sigma, 2.f)));
     return finalscore;
 }
@@ -887,7 +1168,7 @@ float Mesh::persistenceScore(Vertex *Pi, Vertex *Qi, Vertex *Pi_1, Vertex *Qi_1)
     float qStrokeWidth = Qi->strokeWidth;
     float dp = ((pi_1 - pi) - (qi_1 - qi)).norm() + ((pi_1 - qi) - (qi_1 - pi)).norm() + ((pi_1 - qi_1) - (pi - qi)).norm();
 
-    float sigma = 1.5f/2.f*(pStrokeWidth + qStrokeWidth);
+    float sigma = 1.5f / 2.f * (pStrokeWidth + qStrokeWidth);
     float finalscore = exp(-pow(dp, 2) / (2.f * pow(sigma, 2.f)));
     return finalscore;
 }
@@ -900,9 +1181,9 @@ float Mesh::computeM(int pi, int qi, int pi_1, int qi_1, bool leftSide)
     float pers = persistenceScore(_vertices[pi_1], _vertices[qi_1], _vertices[pi], _vertices[qi]);
 
     // naively punish inconsecutive qi and qi-1
-    if (abs(qi - qi_1) > 1) return 1e-10*vv*pers;
+    if (abs(qi - qi_1) > 1)
+        return 1e-10 * vv * pers;
     return vv * pers;
-
 }
 
 /**
@@ -1039,26 +1320,38 @@ void Mesh::getMatches()
             right_candidates.push_back(point_right_candidates);
         }
         // ========== check for previous matches and adjust candidate sets
-        for (int i = 0; i < S.size(); i++) {
+        for (int i = 0; i < S.size(); i++)
+        {
             int point = S[i];
-            if (currentMatches.contains(point)) {
-                for (int potential_match : currentMatches.at(point)) {
+            if (currentMatches.contains(point))
+            {
+                for (int potential_match : currentMatches.at(point))
+                {
                     // see if it's on the left or right side of point using the binormal
                     Vector3f binormal = _vertices[point]->tangent.cross(_vertices[point]->normal);
-                    bool hasRightBefore = false; bool hasLeftBefore = false;
+                    bool hasRightBefore = false;
+                    bool hasLeftBefore = false;
                     // if it lines up with the binormal it's on right side, should go into right candidates
-                    if ((_vertices[potential_match]->position - _vertices[point]->position).dot(binormal) > 0) { // right side
-                        if (hasRightBefore) {
+                    if ((_vertices[potential_match]->position - _vertices[point]->position).dot(binormal) > 0)
+                    { // right side
+                        if (hasRightBefore)
+                        {
                             right_candidates[i].push_back(potential_match);
-                        } else {
+                        }
+                        else
+                        {
                             right_candidates[i] = {potential_match};
                             hasRightBefore = true;
                         }
-
-                    }else {  // left side
-                        if (hasLeftBefore) {
+                    }
+                    else
+                    { // left side
+                        if (hasLeftBefore)
+                        {
                             left_candidates[i].push_back(potential_match);
-                        } else {
+                        }
+                        else
+                        {
                             left_candidates[i] = {potential_match};
                             hasLeftBefore = true;
                         }
@@ -1078,14 +1371,20 @@ void Mesh::getMatches()
             rightMatch.insert({S[i], right_matches[i]});
 
             // ========= populate current matches
-            if (currentMatches.contains(left_matches[i])) {
+            if (currentMatches.contains(left_matches[i]))
+            {
                 currentMatches.at(left_matches[i]).push_back(S[i]);
-            }else {
+            }
+            else
+            {
                 currentMatches.insert({left_matches[i], {S[i]}});
             }
-            if (currentMatches.contains(right_matches[i])) {
+            if (currentMatches.contains(right_matches[i]))
+            {
                 currentMatches.at(right_matches[i]).push_back(S[i]);
-            }else {
+            }
+            else
+            {
                 currentMatches.insert({right_matches[i], {S[i]}});
             }
         }
@@ -1154,8 +1453,10 @@ bool areVerticesImmediateNeighbors(int pIndex, int qIndex, vector<int> stroke)
  * @param x
  * @return the absolute value of x
  */
-int intabs(int x){
-    if(x<0){
+int intabs(int x)
+{
+    if (x < 0)
+    {
         return -x;
     }
     return x;
@@ -1168,13 +1469,13 @@ int intabs(int x){
  * @param p2
  * @return the normal of the plane formed by the three points
  */
-Vector3f getnorm(Vector3f p0, Vector3f p1, Vector3f p2){
-    Vector3f v01 = p1-p0;
-    Vector3f v02 = p2-p0;
+Vector3f getnorm(Vector3f p0, Vector3f p1, Vector3f p2)
+{
+    Vector3f v01 = p1 - p0;
+    Vector3f v02 = p2 - p0;
     Vector3f crossed = v01.cross(v02);
-    return crossed/crossed.norm();
+    return crossed / crossed.norm();
 }
-
 
 /**
  * @brief Mesh::triangulatePair
@@ -1184,74 +1485,84 @@ Vector3f getnorm(Vector3f p0, Vector3f p1, Vector3f p2){
  * @param qn
  * @return a list of triangles triangulating between the edges pi pn and qi qn
  */
-std::vector<Vector3i> Mesh::triangulatePair(int pi,int qi,int pn, int qn){
-    //So in practice, we want to push these new triangles back.
-    //We need to be able to go through each pair of strokes, and iterate through all consecutive matches.
+std::vector<Vector3i> Mesh::triangulatePair(int pi, int qi, int pn, int qn)
+{
+    // So in practice, we want to push these new triangles back.
+    // We need to be able to go through each pair of strokes, and iterate through all consecutive matches.
 
     std::vector<Vector3i> triangles = std::vector<Vector3i>();
-    //qi and qi1 belong to the same stroke by default. Their difference should just be the number of points in between.
-    //Check if qi and qn are the same
-    if(qi == qn){
-        triangles.push_back(Vector3i(pi,pn,qi));
+    // qi and qi1 belong to the same stroke by default. Their difference should just be the number of points in between.
+    // Check if qi and qn are the same
+    if (qi == qn)
+    {
+        triangles.push_back(Vector3i(pi, pn, qi));
     }
-    else{
-        //qi and qn are not the same
-        int n_midpoints = intabs(qn-qi)-1;
+    else
+    {
+        // qi and qn are not the same
+        int n_midpoints = intabs(qn - qi) - 1;
 
-        if(n_midpoints == 0){
-            //qi and qn are consecutive
+        if (n_midpoints == 0)
+        {
+            // qi and qn are consecutive
 
-            //Get positions of all points
+            // Get positions of all points
             Vector3f pip = _vertices[pi]->position;
             Vector3f qip = _vertices[qi]->position;
             Vector3f pnp = _vertices[pn]->position;
             Vector3f qnp = _vertices[qn]->position;
 
-            //Try both triangulations. Choose the one with a larger dihedral angle.
-            //Edit: Dihedral angle might not be great. Just do the one with the smaller diagonal difference.
-            if((pip-qnp).norm()<(qip-pnp).norm()){
-                triangles.push_back(Vector3i(pi,pn,qn));
-                triangles.push_back(Vector3i(pi,qi,qn));
+            // Try both triangulations. Choose the one with a larger dihedral angle.
+            // Edit: Dihedral angle might not be great. Just do the one with the smaller diagonal difference.
+            if ((pip - qnp).norm() < (qip - pnp).norm())
+            {
+                triangles.push_back(Vector3i(pi, pn, qn));
+                triangles.push_back(Vector3i(pi, qi, qn));
             }
-            else{
-                triangles.push_back(Vector3i(qi,qn,pn));
-                triangles.push_back(Vector3i(qi,pi,pn));
+            else
+            {
+                triangles.push_back(Vector3i(qi, qn, pn));
+                triangles.push_back(Vector3i(qi, pi, pn));
             }
         }
-        else{
+        else
+        {
             // //There are a nonzero number of midpoints
             // //For now, we choose a naive solution for triangulating. Splice along the approximate midpoint of the segment connecting qi to qn.
-            int i_mid = static_cast<int>(floor(0.5*(static_cast<float>(qi)+static_cast<float>(qn))));
+            int i_mid = static_cast<int>(floor(0.5 * (static_cast<float>(qi) + static_cast<float>(qn))));
 
             int ibegin;
             int iend;
-            if(qi < qn){
+            if (qi < qn)
+            {
                 ibegin = qi;
                 iend = qn;
             }
-            else{
+            else
+            {
                 ibegin = qn;
                 iend = qi;
             }
 
             // //Add above triangles
-            for(int i = ibegin; i < i_mid; i++){
-                triangles.push_back(Vector3i(pi,i+1,i));
+            for (int i = ibegin; i < i_mid; i++)
+            {
+                triangles.push_back(Vector3i(pi, i + 1, i));
             }
-            //Add middle triangle
-            //i_mid should be between qi and qn
-            triangles.push_back(Vector3i(pi,pn,i_mid));
-            //I HAVE A FEELING QI AND QN ARE NOT ON THE SAME STROKE
+            // Add middle triangle
+            // i_mid should be between qi and qn
+            triangles.push_back(Vector3i(pi, pn, i_mid));
+            // I HAVE A FEELING QI AND QN ARE NOT ON THE SAME STROKE
 
             // Add below triangles
-            for(int i = i_mid; i < iend; i++){
-                triangles.push_back(Vector3i(pn,i+1,i));
+            for (int i = i_mid; i < iend; i++)
+            {
+                triangles.push_back(Vector3i(pn, i + 1, i));
             }
         }
     }
     return triangles;
 }
-
 
 /**
  * @brief Mesh::doTwoVerticesMatch
@@ -1268,14 +1579,14 @@ bool Mesh::doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSa
     Vertex *p = this->_vertices[pIndex];
     Vertex *q = this->_vertices[qIndex];
     Vector3f pq = q->position - p->position;
-//    Vector3f pBinormal = (p->tangent.cross(p->normal)).normalized();
+    //    Vector3f pBinormal = (p->tangent.cross(p->normal)).normalized();
 
     // condition 1
     float length = pq.norm();
     float pStrokeWidth = p->strokeWidth;
     float qStrokeWidth = q->strokeWidth;
 
-    float sigma = 1.5f/2.f*(pStrokeWidth + qStrokeWidth);
+    float sigma = 1.5f / 2.f * (pStrokeWidth + qStrokeWidth);
     if (length > sigma)
     {
         return false;
@@ -1308,13 +1619,17 @@ bool Mesh::doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSa
     }
 
     // enforcing condition 2 for vertices in the vicinity of stroke end-vertices
-    if (closeToEnd) {
+    if (closeToEnd)
+    {
         Vector3f qp = (q->position - p->position).normalized();
-        float angle2; // angle between qp & q's binormal
+        float angle2;                             // angle between qp & q's binormal
         bool leftside2 = q->binormal.dot(qp) < 0; // whether p is on leftside of q
-        if (leftside2) {
-           angle2 = acos(qp.dot(-q->binormal));
-        } else {
+        if (leftside2)
+        {
+            angle2 = acos(qp.dot(-q->binormal));
+        }
+        else
+        {
             angle2 = acos(qp.dot(q->binormal));
         }
         if (angle2 > M_PI / 3.f)
@@ -1338,7 +1653,7 @@ int Mesh::calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool le
     vector<int> otherStroke = this->_lines[otherStrokeIndex];
 
     bool isConsecutivePair = false; // for 2nd returning -1 condition
-    int prevBaseVertexIndex = -1; // index in stroke; for 2nd returning -1 condition
+    int prevBaseVertexIndex = -1;   // index in stroke; for 2nd returning -1 condition
 
     for (int i = 0; i < baseStroke.size(); i++)
     {
@@ -1351,15 +1666,13 @@ int Mesh::calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool le
             // !leftside is incorrect bc we don't know what side baseVertex is on w.r.t otherVertex
             // this is for p.9, section 5.2, restricted matching set subsection
 
-
             // TODO: FOR NOW, I SAY WITHIN THE LAST 5 VERTICES, BOTH V1 & V2 NEED TO HOLD CONDITION 2
             bool isEitherVertexCloseToEnd = (i > baseStroke.size() - this->settings->noOfNearEndVerticesToConsider || i < this->settings->noOfNearEndVerticesToConsider) || (j > otherStroke.size() - this->settings->noOfNearEndVerticesToConsider || j < this->settings->noOfNearEndVerticesToConsider);
 
             int otherVertex = otherStroke[j];
             bool baseOthermatched = this->doTwoVerticesMatch(baseVertex, otherVertex, leftside, false, -1, isEitherVertexCloseToEnd);
 
-//            baseOthermatched = baseOthermatched && this->doTwoVerticesMatch(otherVertex, baseVertex, !leftside, false, -1);
-
+            //            baseOthermatched = baseOthermatched && this->doTwoVerticesMatch(otherVertex, baseVertex, !leftside, false, -1);
 
             if (baseOthermatched)
             {
@@ -1381,7 +1694,8 @@ int Mesh::calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool le
                 // and baseVertex is not the first vertex on stroke
                 // and prevVertex actually has any matches
                 int prevBaseVertex = baseStroke[prevBaseVertexIndex];
-                if (!isConsecutivePair && prevBaseVertexIndex != -1 && this->validVertexVertexMatch.contains(prevBaseVertex) && this->validVertexVertexMatch.at(prevBaseVertex).contains(otherStrokeIndex)) {
+                if (!isConsecutivePair && prevBaseVertexIndex != -1 && this->validVertexVertexMatch.contains(prevBaseVertex) && this->validVertexVertexMatch.at(prevBaseVertex).contains(otherStrokeIndex))
+                {
                     bool isBaseConsecutive = (i - prevBaseVertexIndex == 1);
                     unordered_set<int> prevBaseVertexMatches = this->validVertexVertexMatch.at(prevBaseVertex).at(otherStrokeIndex);
                     // this line below is saying:
@@ -1407,86 +1721,435 @@ int Mesh::calcNumberOfMatches(int baseStrokeIndex, int otherStrokeIndex, bool le
     return baseCount;
 }
 
-void addedge(unordered_map<int, vector<std::pair<float,int>>>* adjacencymap, int i, int j, float v){
-    if(adjacencymap->contains(i)){
-        adjacencymap->at(i).push_back(std::make_pair(v,j));
-    }
-    else{
-        vector<std::pair<float,int>> theset = vector<std::pair<float,int>>();
-        theset.push_back(std::make_pair(v,j));
-        adjacencymap->emplace(i , theset);
+vector<Vector3i> Mesh::outputTriangles()
+{
+    // guarantee:
+    // ---- any triangle's vertices are in the same order as they should be in _faces
+
+    // create a set of all undecided triangles (might be duplicated!)
+    map<tuple<int, int, int>, bool> undecidedTrianglesMap;
+
+    for (const vector<Vector3i> &graph : this->undecidedTriangles)
+    {
+        for (const Vector3i &triangle : graph)
+        {
+            undecidedTrianglesMap[make_tuple(triangle[0], triangle[1], triangle[2])] = true;
+        }
     }
 
-    if(adjacencymap->contains(j)){
-        adjacencymap->at(j).push_back(std::make_pair(v,i));
+    // get only output triangles
+    vector<Vector3i> outputs;
+    for (const Vector3i &triangle : _faces)
+    {
+        if (!undecidedTrianglesMap.contains(make_tuple(triangle[0], triangle[1], triangle[2])))
+        {
+            outputs.push_back(triangle);
+            this->outputTrianglesEdges.insert(this->encodeEdge(triangle[0], triangle[1]));
+            this->outputTrianglesEdges.insert(this->encodeEdge(triangle[1], triangle[2]));
+            this->outputTrianglesEdges.insert(this->encodeEdge(triangle[0], triangle[2]));
+        }
     }
-    else{
-        vector<std::pair<float,int>> theset = vector<std::pair<float,int>>();
-        theset.push_back(std::make_pair(v,i));
-        adjacencymap->emplace(j,theset);
+    return outputs;
+}
+
+int Mesh::encodeEdge(int item1, int item2)
+{
+    return utils::elegantPair(min(item1, item2), max(item1, item2));
+}
+
+void Mesh::createEdgePriorityQueue(unordered_map<int, vector<pair<float, int>>> adjacencies)
+{
+    this->edgePriorityQueue.clear(); // just to be safe!
+    this->edgeCostMap.clear();
+
+    for (auto &it : adjacencies)
+    {
+        int startVertex = it.first;
+        vector<pair<float, int>> edges = it.second;
+        for (auto edge : edges)
+        {
+            float cost = edge.first;
+            int endVertex = edge.second;
+            int encodedEdge = this->encodeEdge(startVertex, endVertex);
+            if (this->edgeCostMap.contains(encodedEdge))
+                continue;
+
+            this->edgeCostMap[encodedEdge] = cost;
+            pair<float, int> item = make_pair(cost, encodedEdge);
+            this->edgePriorityQueue.insert(item);
+        }
+
+        this->unionFindParentMap[startVertex] = startVertex;
     }
 }
 
-bool doTrianglesShareEdge(Vector3i t1, Vector3i t2){
-    //What is the best way to check if they share an edge?
+/**
+ * @brief Mesh::GAEC
+ * @param adjacencies
+ * ref: https://arxiv.org/pdf/1505.06973
+ */
+void Mesh::GAEC(unordered_map<int, vector<pair<float, int>>> adjacencies)
+{
+    // NOTE:
+    // VERTICES MENTIONED IN THIS FUNCTION DOES NOT REFER TO ACTUAL VERTICES
+    // THEY ARE COMPONENTS IN THE GRAPH
+    // I also never delete any entries in this->edgeCostMap because that's unnecessary
+
+    // construct priority queue for all edges
+    this->createEdgePriorityQueue(adjacencies);
+
+    while (!this->edgePriorityQueue.empty())
+    {
+        cout << "GAEC loop with queue size: " << this->edgePriorityQueue.size() << endl;
+        pair<float, int> biggestCostEdge = *this->edgePriorityQueue.begin();
+        this->edgePriorityQueue.erase(this->edgePriorityQueue.begin());
+        float biggestCost = biggestCostEdge.first;
+        if (biggestCost < 0)
+        {
+            cout << "GAEC loop breaks because cost < 0" << endl;
+            break;
+        }
+
+        pair<int, int> decodedEdge = utils::elegantUnpair(biggestCostEdge.second);
+        int edgeVertex1 = decodedEdge.first;
+        vector<pair<float, int>> edgeVertex1Neighbors = adjacencies.at(edgeVertex1);
+        int edgeVertex2 = decodedEdge.second;
+        vector<pair<float, int>> edgeVertex2Neighbors = adjacencies.at(edgeVertex2);
+        set<pair<float, int>> edgeVerticesNeighbors; // can have duplicated neighbors with # costs, because they might be shared between v1 & v2
+        edgeVerticesNeighbors.insert(edgeVertex1Neighbors.cbegin(), edgeVertex1Neighbors.cend());
+        edgeVerticesNeighbors.insert(edgeVertex2Neighbors.cbegin(), edgeVertex2Neighbors.cend());
+
+        // join v1 & v2, so change all children with v2 as parent to have v1 as parent
+        for (const auto &[child, parent] : this->unionFindParentMap)
+        {
+            if (parent == edgeVertex2)
+            {
+                this->unionFindParentMap[child] = edgeVertex1;
+            }
+        }
+
+        unordered_set<int> seenNeighbors;
+        // go through v1's neighbors
+        for (auto &neighbor : edgeVerticesNeighbors)
+        {
+            // update the entry inside this->edgePriorityQueue & edgeCostMap
+            float neighborCost = neighbor.first;
+            int neighborVertex = neighbor.second;
+            if (neighborVertex == edgeVertex1 || neighborVertex == edgeVertex2)
+                continue;
+
+            // ---- delete v1-neighbor from priority queue (IF ANY - this applies to the case where v1 & v2 have a common neighbor but w # costs)
+            int encodedEdgeV1 = this->encodeEdge(edgeVertex1, neighborVertex);
+            pair<float, int> edgePriorityQueueEntryV1 = make_pair(neighborCost, encodedEdgeV1);
+            this->edgePriorityQueue.erase(edgePriorityQueueEntryV1);
+            // ---- delete v2-neighbor from priority queue (IF ANY)
+            int encodedEdgeV2 = this->encodeEdge(edgeVertex2, neighborVertex);
+            pair<float, int> edgePriorityQueueEntryV2 = make_pair(neighborCost, encodedEdgeV2);
+            this->edgePriorityQueue.erase(edgePriorityQueueEntryV2);
+
+            if (seenNeighbors.contains(neighborVertex))
+            {
+                // this neighbor was processed before (because it is a shared neighbor between v1 & v2 so it probably appears twice)
+                // we have deleted from priority queue (as above)
+                continue;
+            }
+            seenNeighbors.insert(neighborVertex);
+
+            // ---- calculate new cost for v1-neighbor
+            int v1NeighborCode = this->encodeEdge(edgeVertex1, neighborVertex);
+            int v2NeighborCode = this->encodeEdge(edgeVertex2, neighborVertex);
+            float costV1Neighbor = this->edgeCostMap.contains(v1NeighborCode) ? this->edgeCostMap.at(v1NeighborCode) : 0;
+            float costV2Neighbor = this->edgeCostMap.contains(v2NeighborCode) ? this->edgeCostMap.at(v2NeighborCode) : 0;
+            float newCost = costV1Neighbor + costV2Neighbor;
+
+            // ---- add v1-neighbor with new cost back into priority queue
+            pair<float, int> newPriorityQueueEntry = make_pair(newCost, v1NeighborCode);
+            this->edgePriorityQueue.insert(newPriorityQueueEntry);
+            // ---- add v1-neighbor with new cost back into edgeCostMap (IF IT ALREADY EXISTS, else add to map)
+            this->edgeCostMap[encodedEdgeV1] = newCost;
+        }
+
+        // update all edges in adjacencies with v1's parent to have new cost
+        // & update all edges in adjacencies with v2's parent to be with v1's parent & to have new cost
+        // ---- update edges with v1's neighbors with new costs
+        seenNeighbors.clear();
+        vector<pair<float, int>> newEdgeVertex1Neighbors;
+        for (pair<float, int> v1Neighbor : edgeVertex1Neighbors)
+        {
+            int neighbor = v1Neighbor.second;
+            if (neighbor == edgeVertex2)
+                continue; // if adjacency = v2, skip
+
+            int encodedEdge = this->encodeEdge(neighbor, edgeVertex1);
+            float newCost = this->edgeCostMap.at(encodedEdge);
+            newEdgeVertex1Neighbors.push_back(make_pair(newCost, neighbor));
+
+            // update neighbors of neighbor where v1 is there!
+            vector<pair<float, int>> newNeighborsNeighbors;
+            vector<pair<float, int>> neighborsNeighbors = adjacencies.at(neighbor);
+            for (pair<float, int> neighborsNeighbor : neighborsNeighbors)
+            {
+                if (neighborsNeighbor.second == edgeVertex1)
+                {
+                    pair<float, int> newNeighborsNeighbor = make_pair(newCost, edgeVertex1);
+                    newNeighborsNeighbors.push_back(newNeighborsNeighbor);
+                }
+                else if (neighborsNeighbor.second == edgeVertex2)
+                {
+                    // we don't want neighbor-vertex2 to appear in adjacencies!
+                    continue;
+                }
+                else
+                {
+                    newNeighborsNeighbors.push_back(neighborsNeighbor);
+                }
+            }
+            adjacencies[neighbor] = newNeighborsNeighbors;
+            seenNeighbors.insert(neighbor);
+        }
+        // ---- replace edges with v2's neighbors to be v1-neighbor and with new costs
+        for (pair<float, int> v2Neighbor : edgeVertex2Neighbors)
+        {
+            int neighbor = v2Neighbor.second;
+            if (neighbor == edgeVertex1)
+                continue; // if adjacency = v1, skip
+
+            // edgeVertex1, because v1 is now v2's parent
+            int encodedEdge = this->encodeEdge(neighbor, edgeVertex1);
+            float newCost = this->edgeCostMap.at(encodedEdge);
+
+            if (!seenNeighbors.contains(neighbor))
+            { // in case v1 already connected to neighbor (neighbor is shared between v1 & v2, so it was processed
+                // above
+
+                newEdgeVertex1Neighbors.push_back(make_pair(newCost, neighbor));
+                // update neighbors of neighbor where v2 is there!
+                // specifically, replace v2 with v1, and use new cost
+                vector<pair<float, int>> newNeighborsNeighbors;
+                vector<pair<float, int>> neighborsNeighbors = adjacencies.at(neighbor);
+                for (pair<float, int> neighborsNeighbor : neighborsNeighbors)
+                {
+                    // if other vertex is v2
+                    if (neighborsNeighbor.second == edgeVertex2)
+                    {
+                        // then we use v1 (!!!) & new cost
+                        pair<float, int> newNeighborsNeighbor = make_pair(newCost, edgeVertex1);
+                        newNeighborsNeighbors.push_back(newNeighborsNeighbor);
+                    }
+                    else
+                    {
+                        newNeighborsNeighbors.push_back(neighborsNeighbor);
+                    }
+                }
+                adjacencies[neighbor] = newNeighborsNeighbors;
+            }
+        }
+        // ---- remove v2 from adjacencies
+        adjacencies.erase(edgeVertex2);
+        // ---- update v1's neighbors & edge costs
+        adjacencies[edgeVertex1] = newEdgeVertex1Neighbors;
+    }
+}
+
+void Mesh::KernighanLin()
+{
+    //
+}
+
+vector<int> Mesh::getNodesUnderSameParentFromUnionFind(int child)
+{
+    int parent = this->unionFindParentMap.at(child);
+    vector<int> children;
+    for (const auto &[mapChild, mapParent] : this->unionFindParentMap)
+    {
+        if (mapParent == parent && mapChild != child)
+        {
+            // child passed in is the root node. We don't want the root node in our output
+            children.push_back(mapChild);
+        }
+    }
+    return children;
+}
+
+void addedge(unordered_map<int, vector<std::pair<float, int>>> *adjacencymap, int i, int j, float v)
+{
+    if (adjacencymap->contains(i))
+    {
+        adjacencymap->at(i).push_back(std::make_pair(v, j));
+    }
+    else
+    {
+        vector<std::pair<float, int>> theset = vector<std::pair<float, int>>();
+        theset.push_back(std::make_pair(v, j));
+        adjacencymap->emplace(i, theset);
+    }
+
+    if (adjacencymap->contains(j))
+    {
+        adjacencymap->at(j).push_back(std::make_pair(v, i));
+    }
+    else
+    {
+        vector<std::pair<float, int>> theset = vector<std::pair<float, int>>();
+        theset.push_back(std::make_pair(v, i));
+        adjacencymap->emplace(j, theset);
+    }
+}
+
+bool doTrianglesShareEdge(Vector3i t1, Vector3i t2)
+{
     int shared = 0;
-    for(int i = 0; i < 3; i++){
-        for(int j = 0; j < 3; j++){
-            if(t1[i]==t2[j]){
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            if (t1[i] == t2[j])
+            {
                 shared = shared + 1;
             }
         }
     }
-    if(shared == 2){
+    if (shared == 2)
+    {
         return true;
     }
-    else if(shared >2){
+    else if (shared > 2)
+    {
         std::cout << "warning- two triangles share more than one edge in common" << std::endl;
         return true;
     }
     return false;
-    //Now check all 9 edge pairs. Or uh. Find the vertex that corresponds to the other vertex. Maybe do that. Idk.
-    //TODO: Implement this!
 }
 
-void Mesh::makeGraph(std::vector<Vector3i> trianglepatch){
-//Chloe is making a map that points from triangle hashes to their incompatible neighbors
-    unordered_map<int,unordered_set<int>> incompatibles;
-    int numtriangles = trianglepatch.size();
-    unordered_map<int, vector<std::pair<float,int>>> adjacencies;
+bool Mesh::areVerticesContinuous(Vertex *v1, Vertex *v2)
+{
+    if (v1->lineIndex != v2->lineIndex)
+        return false;
 
-    unordered_map<int,int> indicestohashes = unordered_map<int,int>();
-    for(int i = 0; i < numtriangles; i++){
-        //make a node for that triangle
-        //Note: I don't think we even need a node structure.
-        indicestohashes.emplace(i, tohash(trianglepatch[i],_vertices.size()));
+    vector<int> line = this->_lines[v1->lineIndex];
+    for (int i = 0; i < line.size(); i++)
+    {
+        int vertexIndex = line[i];
+        Vertex *curVertex = this->_vertices[vertexIndex];
+        if (curVertex == v1)
+        {
+            // check if v2 is the next one in line
+            if (i < line.size() && this->_vertices[line[i + 1]] == v2)
+            {
+                return true;
+            }
+        }
+        else if (curVertex == v2)
+        {
+            // check if v2 is the next one in line
+            if (i < line.size() && this->_vertices[line[i + 1]] == v1)
+            {
+                return true;
+            }
+        }
     }
-    //Also we need an output node. That will be below vvv
-    indicestohashes.emplace(-1,-1);
-    //Now look at...like.... ever single pair of triangles. F
-    for(int i = 0; i < numtriangles; i++){
-        for(int j = 0; i < numtriangles; j++){
+    return false;
+}
+
+unordered_map<int, vector<pair<float, int>>> Mesh::makeGraph(vector<Vector3i> trianglepatch, unordered_map<int, unordered_set<int>> incompatibles)
+{
+    int numtriangles = trianglepatch.size();
+    unordered_map<int, vector<pair<float, int>>> adjacencies;
+
+    unordered_map<int, int> indicestohashes = unordered_map<int, int>();
+    for (int i = 0; i < numtriangles; i++)
+    {
+        // make a node for that triangle
+        // Note: I don't think we even need a node structure.
+        indicestohashes.emplace(i, tohash(trianglepatch[i], _vertices.size()));
+    }
+    // Also we need an output node. That will be below vvv
+    indicestohashes.emplace(-1, -1);
+    // Now look at...like.... ever single pair of triangles. F
+    for (int i = 0; i < numtriangles; i++)
+    {
+        if (!incompatibles.contains(i))
+        {
+            unordered_set<int> emptySet;
+            incompatibles[i] = emptySet;
+        }
+
+        for (int j = i + 1; j < numtriangles; j++)
+        {
+            if (!incompatibles.contains(j))
+            {
+                unordered_set<int> emptySet;
+                incompatibles[j] = emptySet;
+            }
+
             bool mutuallyincompatible = incompatibles.at(i).contains(j) || incompatibles.at(j).contains(i);
-            //If they are mutually incompatible make an arc and give it a negative weight
-            if(mutuallyincompatible){
+            // If they are mutually incompatible make an arc and give it a negative weight
+            if (mutuallyincompatible)
+            {
                 addedge(&adjacencies, i, j, -30.f);
             }
-            else{
-                bool commonedge = doTrianglesShareEdge(trianglepatch[i],trianglepatch[j]);
-                //TODO: Compute if they share a common edge!
-                //else: If they are not mutually incompatible but share a common edge give it a weight of 1
-                if(commonedge){
+            else
+            {
+                bool commonedge = doTrianglesShareEdge(trianglepatch[i], trianglepatch[j]);
+                // else: If they are not mutually incompatible but share a common edge give it a weight of 1
+                if (commonedge)
+                {
                     addedge(&adjacencies, i, j, 1.f);
                 }
             }
         }
     }
-    //Make an edge between every triangle and the output node as well.
-    for(int i = 0; i < numtriangles; i++){
-        //Assign the weight based on the matching score
-        float matchingweight = 0;
-        addedge(&adjacencies, i, -1, matchingweight);
+    // Make an edge between every triangle and the output node as well.
+    // Last node's index = numtriangles
+    for (int i = 0; i < numtriangles; i++)
+    {
+        // Assign the weight based on the matching score
+        float matchingweight = 0.f;
+
+        // check which 2 of them are on the same stroke
+        Vertex *v1 = this->_vertices[trianglepatch[i][0]];
+        Vertex *v2 = this->_vertices[trianglepatch[i][1]];
+        Vertex *v3 = this->_vertices[trianglepatch[i][2]];
+        // first, check if all 3 are on the same stroke:
+        if (this->areVerticesContinuous(v1, v2))
+        {
+            // v3 is the other vertex
+            // does not matter if I check left/right with v1 or v2
+            Vector3f v1v3 = (v3->position - v1->position).normalized();
+            bool leftside = v1->binormal.dot(v1v3) < 0;
+            matchingweight = this->vertexVertexScore(v1, v3, leftside) + this->vertexVertexScore(v2, v3, leftside);
+        }
+        else if (this->areVerticesContinuous(v3, v2))
+        {
+            // v1 is the other vertex
+            Vector3f v3v1 = (v1->position - v3->position).normalized();
+            bool leftside = v3->binormal.dot(v3v1) < 0;
+            matchingweight = this->vertexVertexScore(v3, v1, leftside) + this->vertexVertexScore(v2, v1, leftside);
+        }
+        else if (this->areVerticesContinuous(v1, v3))
+        {
+            // v2 is the other vertex
+            Vector3f v1v2 = (v2->position - v1->position).normalized();
+            bool leftside = v1->binormal.dot(v1v2) < 0;
+            matchingweight = this->vertexVertexScore(v1, v2, leftside) + this->vertexVertexScore(v3, v2, leftside);
+        }
+        else
+        {
+            matchingweight = -30.f;
+            //            cerr << "Triangle " << trianglepatch[i][0] << "-" << trianglepatch[i][1] << "-" << trianglepatch[i][2] << " does not have any continuous, same-line pair of vertices";
+        }
+        //        int v1Index = this->getVertexIndex(v1);
+        //        int v2Index = this->getVertexIndex(v2);
+        int v1Index = trianglepatch[i][0];
+        int v2Index = trianglepatch[i][1];
+        int v3Index = trianglepatch[i][2];
+        matchingweight += this->outputTrianglesEdges.contains(this->encodeEdge(v1Index, v2Index));
+        matchingweight += this->outputTrianglesEdges.contains(this->encodeEdge(v3Index, v2Index));
+        matchingweight += this->outputTrianglesEdges.contains(this->encodeEdge(v3Index, v1Index));
+
+        addedge(&adjacencies, i, numtriangles, matchingweight);
     }
+    return adjacencies;
 }
 
 // -------- PRIVATE ENDS -------------------------------------------------------------------------------
