@@ -29,6 +29,7 @@ public:
     std::string outStrokeFile;
     std::string outMeshFile;
     bool isDebug = false;
+    int noOfNearEndVerticesToConsider = 3;
 };
 
 namespace utils {
