@@ -52,6 +52,7 @@ public:
     void saveToFile();
     void debugSaveToFile();
     void debugUndecidedTrianglesSaveToFile();
+    void debugIncompatibleTrianglesSaveToFile();
 
     // the main algo
     void getMatches();
