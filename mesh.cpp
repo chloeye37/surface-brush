@@ -963,6 +963,14 @@ void Mesh::populateTriangleMaps() {
 // Populates vector<vector<Vector3i>> undecidedTriangles
 void Mesh::computeUndecidedTriangles()
 {
+    // to be safe
+    this->edgeToTriangles.clear();
+    this->vertexToTriangles.clear();
+    this->undecidedTriangles.clear();
+    this->incompatibleTriangles.clear();
+    this->edgeIncompatibleTrianglesMap.clear();
+    this->vertexIncompatibleTrianglesMap.clear();
+
     unordered_set<pair<Vector3i, Vector3i>, classcomp2> emptySet; // reusable empty set
 
     populateTriangleMaps();
@@ -1617,7 +1625,7 @@ float Mesh::vertexVertexScore(Vertex *P, Vertex *Q, bool leftside)
     Vector3f mpqprime = 0.5 * (pc + qc);
     Vector3f mpq = 0.5 * (p + q);
     float dln = (mpq - mpqprime).norm();
-    float sigma = 1.5f / 2.f * (pStrokeWidth + qStrokeWidth);
+    float sigma = this->settings->dmaxConstant * (pStrokeWidth + qStrokeWidth);
     float finalscore = exp(-pow(da + dt + dln, 2) / (2.f * pow(sigma, 2.f)));
     return finalscore;
 }
@@ -1633,7 +1641,7 @@ float Mesh::persistenceScore(Vertex *Pi, Vertex *Qi, Vertex *Pi_1, Vertex *Qi_1)
     float qStrokeWidth = Qi->strokeWidth;
     float dp = ((pi_1 - pi) - (qi_1 - qi)).norm() + ((pi_1 - qi) - (qi_1 - pi)).norm() + ((pi_1 - qi_1) - (pi - qi)).norm();
 
-    float sigma = 1.5f / 2.f * (pStrokeWidth + qStrokeWidth);
+    float sigma = this->settings->dmaxConstant * (pStrokeWidth + qStrokeWidth);
     float finalscore = exp(-pow(dp, 2) / (2.f * pow(sigma, 2.f)));
     return finalscore;
 }
@@ -2065,7 +2073,7 @@ bool Mesh::doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSa
     float pStrokeWidth = p->strokeWidth;
     float qStrokeWidth = q->strokeWidth;
 
-    float sigma = 1.5f / 2.f * (pStrokeWidth + qStrokeWidth);
+    float sigma = this->settings->dmaxConstant * (pStrokeWidth + qStrokeWidth);
     if (length > sigma)
     {
         return false;

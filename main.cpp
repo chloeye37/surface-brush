@@ -56,6 +56,8 @@ int main(int argc, char *argv[])
     appSettings->outMeshFile = settings.value("IO/outMeshFile").toString().toStdString();
     appSettings->isDebug = settings.value("Debug/isDebug").toBool();
     appSettings->noOfNearEndVerticesToConsider = settings.value("Params/noOfNearEndVerticesToConsider").toInt();
+    appSettings->noOfManifoldConsolidationIterations = settings.value("Params/noOfManifoldConsolidationIterations").toInt();
+    appSettings->dmaxConstant = settings.value("Params/dmaxConstant").toFloat();
 
     // Load
     Mesh m;
@@ -77,20 +79,24 @@ int main(int argc, char *argv[])
     // ------ Sec 5.4: Manifold Consolidation: Debug undecided triangle generation --------
     //    m.computeUndecidedTriangles();
     //    std::cout << "Computed undecided triangles." << std::endl;
-    m.manifoldConsolidation();
-    std::cout << "Fixed mesh to be a manifold mesh." << std::endl;
+    for (int i = 0; i < appSettings->noOfManifoldConsolidationIterations; i++) {
+        m.manifoldConsolidation();
+    }
+    std::cout << "Fixed mesh to be a manifold mesh, with " << appSettings->noOfManifoldConsolidationIterations << " iterations." << std::endl;
 
     // ------ Sec 6: Boundary smoothing and gap filling --------
     m.computeBoundaries();
     std::cout << "Computed boundaries." << std::endl;
     m.smoothBoundaries();
     std::cout << "Smoothed boundaries." << std::endl;
-    m.getBoundaryCandidates();
-    std::cout << "Sec6: Got restricted matching candidates for boundaries." << std::endl;
-    m.getBoundaryMatches();
-    std::cout << "Sec6: Finished matching boundaries." << std::endl;
-    // m.meshStripGeneration(true); // bool : true if processing boundaries, false otherwise
-    // std::cout << "Generated boundary mesh strips." << std::endl;
+//    m.getBoundaryCandidates();
+//    std::cout << "Sec6: Got restricted matching candidates for boundaries." << std::endl;
+//    m.getBoundaryMatches();
+//    std::cout << "Sec6: Finished matching boundaries." << std::endl;
+//    m.meshStripGeneration(true); // bool : true if processing boundaries, false otherwise
+//    std::cout << "Generated boundary mesh strips." << std::endl;
+//    m.manifoldConsolidation();
+//    std::cout << "Fixed mesh to be a manifold mesh, again." << std::endl;
 
 
     // Finish timing

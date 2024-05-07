@@ -30,6 +30,8 @@ public:
     std::string outMeshFile;
     bool isDebug = false;
     int noOfNearEndVerticesToConsider = 3;
+    int noOfManifoldConsolidationIterations = 5;
+    float dmaxConstant = 1.5f / 2.f;
 };
 
 namespace utils {
