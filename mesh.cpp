@@ -181,7 +181,7 @@ void Mesh::debugSaveToFile()
             outMeshFile << "l " << (l[j] + 1) << " " << (l[j + 1] + 1) << endl;
         }
     }
-    // Write a line segment if there is a match between two points
+    // // Write a line segment if there is a match between two points
     //    for (size_t i = 0; i < _vertices.size(); i++)
     //    {
     //        if (leftMatch.contains(i))
@@ -201,6 +201,19 @@ void Mesh::debugSaveToFile()
     //            }
     //        }
     //    }
+
+    // Write boundary matches to StrokeFile
+    for (size_t i = 0; i < _vertices.size(); i++)
+    {
+        if (boundaryMatch.contains(i))
+        {
+            if (boundaryMatch.at(i) != -1)
+            {
+                outStrokeFile << "l " << i + 1 << " " << boundaryMatch.at(i) + 1 << endl;
+                // outMeshFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
+            }
+        }
+    }
 
     // Look at all face hashes
     //    std::vector<int> facehashes = std::vector<int>();
@@ -765,13 +778,13 @@ void Mesh::populateTriangleMaps() {
         {
             vertexToTriangles.insert({v2, {triangle}});
         }
-        if (vertexToTriangles.contains(v2))
+        if (vertexToTriangles.contains(v3))
         {
-            vertexToTriangles.at(v2).push_back(triangle);
+            vertexToTriangles.at(v3).push_back(triangle);
         }
         else
         {
-            vertexToTriangles.insert({v2, {triangle}});
+            vertexToTriangles.insert({v3, {triangle}});
         }
 
         // finally populate unordered_map<int, vector<int>> adjacencyList
@@ -1234,6 +1247,11 @@ void Mesh::getComponentMatchDistance() {
 // use componentIndex_avgDist and Vertex->componentIndex to get the corresponding average distance
 // for each boundary line, need vector<vector<int>> boundary_candidates;
 void Mesh::getBoundaryCandidates() {
+    // first compute components and populate dmax for each component: the map componentIndex_avgDist
+    vector<vector<Vertex*>> components = getComponents();
+    getComponentMatchDistance();
+    getNewBoundaryTangentsAndBinormals();
+
     // for each boundary vertex, loop through all other boundary vertices to get matches
     // vector<pair<bool,vector<int>>> _boundaries
     // If the vector represents a line, the bool is true. If the vector represents a cycle, the bool is false
@@ -1243,9 +1261,14 @@ void Mesh::getBoundaryCandidates() {
             int boundary_vertex_p = boundary_line.second[i];
             int neighbor1 = -1; int neighbor2 = -1;
             if (boundary_line.first) { // it's a line
-                if (i == 0) neighbor1 = boundary_line.second[i+1];
-                else if (i == boundary_line.second.size()-1) neighbor1 = boundary_line.second[i-1];
-                else neighbor1 = boundary_line.second[i-1]; neighbor2 = boundary_line.second[i+1];
+                if (i == 0) {
+                    neighbor1 = boundary_line.second[i+1];
+                } else if (i == boundary_line.second.size()-1) {
+                    neighbor1 = boundary_line.second[i-1];
+                } else {
+                    neighbor1 = boundary_line.second[i-1];
+                    neighbor2 = boundary_line.second[i+1];
+                }
             }else { // it's a cycle, then everyone has two neighbors
                 if (i == 0 || i == boundary_line.second.size()-1) {
                     neighbor1 = boundary_line.second[i+1];
@@ -1255,6 +1278,9 @@ void Mesh::getBoundaryCandidates() {
                     neighbor2 = boundary_line.second[i+1];
                 }
             }
+            // side product: a boundary neighbor map that will be useful in computeM_boundary
+            boundaryNeighbors.insert({boundary_vertex_p, {neighbor1, neighbor2}});
+
             // loop through all other boundary vertices to check candidacy: except itself and its two neighbors on the same boundary stroke
             // populate unordered_map<int, unordered_set<int>> boundaryRestrictedMatchingCandidates
             // use boundary_vertex_p as the key
@@ -1273,12 +1299,12 @@ void Mesh::getBoundaryCandidates() {
                     // Condition 1: length longer than dmax
                     float length = pq.norm();
                     float pStrokeWidth = p->strokeWidth; float qStrokeWidth = q->strokeWidth;
-                    float sigma = 1.5f/2.f*(pStrokeWidth + qStrokeWidth);
+                    float sigma = 1.38f/2.f*(pStrokeWidth + qStrokeWidth); // default: 1.5f/2.f*(pStrokeWidth + qStrokeWidth) -- 191 matches
                     float dmax = componentIndex_avgDist[p->componentIndex]; // is this correct?
-                    if (length > dmax) continue;
+                    if (length > sigma) continue;
                     // if passes all conditions, add to the set
                     if (!boundaryRestrictedMatchingCandidates.contains(boundary_vertex_p)){
-                        boundaryRestrictedMatchingCandidates[boundary_vertex_p] = unordered_set<int>();
+                        boundaryRestrictedMatchingCandidates.insert({boundary_vertex_p, unordered_set<int>()});
                     }
                     unordered_set<int> candidateSet = boundaryRestrictedMatchingCandidates.at(boundary_vertex_p);
                     candidateSet.insert(boundary_vertex_q);
@@ -1334,6 +1360,11 @@ void Mesh::getBoundaryMatches() {
             }
         }
     }
+    int count_matches = 0;
+    for (auto i = boundaryMatch.begin(); i != boundaryMatch.end(); i++) {
+        if (i->second != -1) count_matches++;
+    }
+    std::cout << "Number of added boundary matches: " << count_matches << std::endl;
 }
 
 // --------------------- Get matches functions ------------------------
@@ -1452,7 +1483,8 @@ float Mesh::computeM_boundary(int pi, int qi, int pi_1, int qi_1, bool leftSide)
     float vv = vertexVertexScore(_vertices[pi_1], _vertices[qi_1], leftSide);
     float pers = persistenceScore(_vertices[pi_1], _vertices[qi_1], _vertices[pi], _vertices[qi]);
 
-    // naively punish inconsecutive qi and qi-1 -- now check out boundary points
+    // naively punish inconsecutive qi and qi-1 -- now punish inconsecutive boundary points
+    // if (boundaryNeighbors.at(qi)[0] != qi_1 && boundaryNeighbors.at(qi)[1] != qi_1) return 1e-10*vv*pers;
     // if (abs(qi - qi_1) > 1) return 1e-10*vv*pers;
     return vv * pers;
 
@@ -2074,13 +2106,13 @@ void Mesh::GAEC(unordered_map<int, vector<pair<float, int>>> adjacencies)
 
     while (!this->edgePriorityQueue.empty())
     {
-        cout << "GAEC loop with queue size: " << this->edgePriorityQueue.size() << endl;
+        // cout << "GAEC loop with queue size: " << this->edgePriorityQueue.size() << endl;
         pair<float, int> biggestCostEdge = *this->edgePriorityQueue.begin();
         this->edgePriorityQueue.erase(this->edgePriorityQueue.begin());
         float biggestCost = biggestCostEdge.first;
         if (biggestCost < 0)
         {
-            cout << "GAEC loop breaks because cost < 0" << endl;
+            // cout << "GAEC loop breaks because cost < 0" << endl;
             break;
         }
 

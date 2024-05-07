@@ -65,11 +65,7 @@ public:
     void cleanUp(); // perform any cleaning up at the end
 
 
-    // ----- the following sec6 functions should all be private once we have some public function that calls them, but for now they are public
-    // ------- Section 6: Boundary Matching
-    vector<vector<Vertex*>> getComponents();
-    void dfs(unordered_map<int, vector<int>> &adj, vector<bool> &visited, int src, vector<Vertex*> &component, int num_components);
-    void getComponentMatchDistance();
+
 
     // ------- Get boundary points
     void computeBoundaries();
@@ -189,6 +185,7 @@ private:
     unordered_map<int, unordered_set<int>> boundaryRestrictedMatchingCandidates; // maps index of a boundary vertex to its set of candidates
     unordered_map<int, int> boundaryMatch;
     unordered_map<int, vector<int>> currentBoundaryMatches; // map from vertex A to a list of vertices that have A as their match
+    unordered_map<int, vector<int>> boundaryNeighbors; // map from boundary vertex to its one/two neighbors
 
     // helpers
     vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
@@ -207,7 +204,10 @@ private:
 
     // ------- Section 5.4: Manifold consolidation
 
-    // ------- Section 6:
+    // ------- Section 6:Boundary Matching
+    vector<vector<Vertex*>> getComponents();
+    void dfs(unordered_map<int, vector<int>> &adj, vector<bool> &visited, int src, vector<Vertex*> &component, int num_components);
+    void getComponentMatchDistance();
     float computeM_boundary(int pi, int qi, int pi_1, int qi_1, bool leftSide);
 
     std::vector<Vector3i> triangulatePair(int pi, int qi, int pn, int qn);

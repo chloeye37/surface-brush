@@ -73,6 +73,14 @@ int main(int argc, char *argv[])
     std::cout << "Finished matching." << std::endl;
     m.meshStripGeneration();
     std::cout << "Generated mesh strips." << std::endl;
+
+    // ------ Sec 5.4: Manifold Consolidation: Debug undecided triangle generation --------
+    //    m.computeUndecidedTriangles();
+    //    std::cout << "Computed undecided triangles." << std::endl;
+    m.manifoldConsolidation();
+    std::cout << "Fixed mesh to be a manifold mesh." << std::endl;
+
+    // ------ Sec 6: Boundary smoothing and gap filling --------
     m.computeBoundaries();
     std::cout << "Computed boundaries." << std::endl;
     m.smoothBoundaries();
@@ -81,16 +89,6 @@ int main(int argc, char *argv[])
     std::cout << "Sec6: Got restricted matching candidates for boundaries." << std::endl;
     m.getBoundaryMatches();
     std::cout << "Sec6: Finished matching boundaries." << std::endl;
-
-    // ------ Debug undecided triangle generation --------
-//    m.computeUndecidedTriangles();
-//    std::cout << "Computed undecided triangles." << std::endl;
-    m.manifoldConsolidation();
-    std::cout << "Fixed mesh to be a manifold mesh." << std::endl;
-
-
-    vector<vector<Vertex*>> components = m.getComponents();
-    m.getComponentMatchDistance();
 
 
     // Finish timing
