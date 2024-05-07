@@ -64,7 +64,7 @@ public:
 
 
     // ----- the following sec6 functions should all be private once we have some public function that calls them, but for now they are public
-    // ------- Section 6: Matching
+    // ------- Section 6: Boundary Matching
     vector<vector<Vertex*>> getComponents();
     void dfs(unordered_map<int, vector<int>> &adj, vector<bool> &visited, int src, vector<Vertex*> &component, int num_components);
     void getComponentMatchDistance();
@@ -72,6 +72,12 @@ public:
     // ------- Get boundary points
     void computeBoundaries();
     void smoothBoundaries();
+    // ------- Generate candidates and then match
+    void getBoundaryCandidates();
+    void getNewBoundaryTangentsAndBinormals();
+    void getBoundaryMatches();
+
+
 
 private:
     // settings
@@ -107,14 +113,16 @@ private:
     // -- sec 5.4 debug --
     std::set<int> undecided_vertices;
 
-    // ------- Section 6: Closing the Gaps
+    // --------------- Section 6: Closing the Gaps -----------------------
     unordered_map<int, float> componentIndex_avgDist;
     void addedgetotrimap(int x, int y, Vector3i thetriangle);
-
     // ------- Get boundary points
     // If the vector represents a line, the bool is true. If the vector represents a cycle, the bool is false
     // For cycles, the start index is listed at the end as well
     vector<pair<bool,vector<int>>> _boundaries;
+    unordered_map<int, unordered_set<int>> boundaryRestrictedMatchingCandidates; // maps index of a boundary vertex to its set of candidates
+    unordered_map<int, int> boundaryMatch;
+    unordered_map<int, vector<int>> currentBoundaryMatches; // map from vertex A to a list of vertices that have A as their match
 
     // helpers
     vector<vector<int>> parseToPolyline(vector<Vector2i> connections);
@@ -125,7 +133,7 @@ private:
     float persistenceScore(Vertex *Pi, Vertex *Qi, Vertex *Pi_1, Vertex *Qi_1); // Qi is the match of Pi, Qi_1 is the match of Pi_1; Pi and Pi_1 are consecutive vertices
     float computeM(int pi, int qi, int pi_1, int qi_1, bool leftSide);
     vector<vector<int>> getLines();
-    vector<int> viterbi(vector<int> S, vector<vector<int>> candidates, bool leftSide); // for testing purposes, moved into public
+    vector<int> viterbi(vector<int> S, vector<vector<int>> candidates, bool leftSide, bool boundary); // for testing purposes, moved into public
     // ------- restricted matching
     pair<vector<int>, vector<int>> splitStrokesIntoLeftRight(int baseStrokeIndex);
     bool doTwoVerticesMatch(int pIndex, int qIndex, bool leftside, bool isOnSameStroke, int strokeIndex);
@@ -140,7 +148,7 @@ private:
     bool checkOverlap(int v, int v1, int v2, int v3, int v4);
 
     // ------- Section 6:
-    void getBoundaryCandidates();
-    void getNewBoundaryBinormals();
+
+    float computeM_boundary(int pi, int qi, int pi_1, int qi_1, bool leftSide);
 
 };

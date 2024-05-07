@@ -76,6 +76,10 @@ int main(int argc, char *argv[])
     std::cout << "Computed boundaries." << std::endl;
     m.smoothBoundaries();
     std::cout << "Smoothed boundaries." << std::endl;
+    m.getBoundaryCandidates();
+    std::cout << "Sec6: Got restricted matching candidates for boundaries." << std::endl;
+    m.getBoundaryMatches();
+    std::cout << "Sec6: Finished matching boundaries." << std::endl;
 
     // ------ Debug undecided triangle generation --------
     m.computeUndecidedTriangles();

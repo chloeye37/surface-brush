@@ -951,6 +951,7 @@ void Mesh::getComponentMatchDistance() {
 // --------------------- Section 6 ------------------------
 // --------------------- start matching ------------------------
 // use componentIndex_avgDist and Vertex->componentIndex to get the corresponding average distance
+// for each boundary line, need vector<vector<int>> boundary_candidates;
 void Mesh::getBoundaryCandidates() {
     // for each boundary vertex, loop through all other boundary vertices to get matches
     // vector<pair<bool,vector<int>>> _boundaries
@@ -958,7 +959,7 @@ void Mesh::getBoundaryCandidates() {
     // For cycles, the start index is listed at the end as well
     for (auto & boundary_line : _boundaries) {
         for (int i = 0; i < boundary_line.second.size(); i++) {
-            int boundary_vertex = boundary_line.second[i];
+            int boundary_vertex_p = boundary_line.second[i];
             int neighbor1 = -1; int neighbor2 = -1;
             if (boundary_line.first) { // it's a line
                 if (i == 0) neighbor1 = boundary_line.second[i+1];
@@ -974,16 +975,85 @@ void Mesh::getBoundaryCandidates() {
                 }
             }
             // loop through all other boundary vertices to check candidacy: except itself and its two neighbors on the same boundary stroke
+            // populate unordered_map<int, unordered_set<int>> boundaryRestrictedMatchingCandidates
+            // use boundary_vertex_p as the key
+            for (auto & boundary_line_q : _boundaries) {
+                for (int j = 0; j < boundary_line_q.second.size(); j++) {
+                    int boundary_vertex_q = boundary_line_q.second[j];
 
+                    // Check the 3 matching conditions for p and q
+                    // Condition 3: p and q cannot be the same and cannot be neighbors
+                    if (boundary_vertex_q == boundary_vertex_p || boundary_vertex_q == neighbor1 || boundary_vertex_q == neighbor2) continue;
+                    // Condition 2: angle smaller than 80
+                    Vertex *p = this->_vertices[boundary_vertex_p]; Vertex *q = this->_vertices[boundary_vertex_q];
+                    Vector3f pq = (q->position - p->position).normalized();
+                    float angle = acos(pq.dot(p->boundary_binormal));
+                    if (angle > M_PI / 180.f * 80.f) continue;
+                    // Condition 1: length longer than dmax
+                    float length = pq.norm();
+                    float pStrokeWidth = p->strokeWidth; float qStrokeWidth = q->strokeWidth;
+                    float sigma = 1.5f/2.f*(pStrokeWidth + qStrokeWidth);
+                    float dmax = componentIndex_avgDist[p->componentIndex]; // is this correct?
+                    if (length > dmax) continue;
+                    // if passes all conditions, add to the set
+                    if (!boundaryRestrictedMatchingCandidates.contains(boundary_vertex_p)){
+                        boundaryRestrictedMatchingCandidates[boundary_vertex_p] = unordered_set<int>();
+                    }
+                    unordered_set<int> candidateSet = boundaryRestrictedMatchingCandidates.at(boundary_vertex_p);
+                    candidateSet.insert(boundary_vertex_q);
+                    boundaryRestrictedMatchingCandidates[boundary_vertex_p] = candidateSet;
+                }
+            }
         }
     }
 
 }
 
-bool Mesh::doBoundaryTwoPointsMatch(int p, int q) {
 
+void Mesh::getBoundaryMatches() {
+    // process each boundary
+    for (auto & boundary_line : _boundaries) {
+        vector<int> S = boundary_line.second;
+        // convert the unordered_map<int, unordered_set<int>> boundaryRestrictedMatchingCandidates into a vector<vector<int>> candidates for S
+        vector<vector<int>> candidates;
+        for (int point : S) {
+            vector<int> point_candidates = {};
+            if (boundaryRestrictedMatchingCandidates.contains(point)) { // if it has some potential matches
+                point_candidates.insert(point_candidates.end(), boundaryRestrictedMatchingCandidates.at(point).begin(), boundaryRestrictedMatchingCandidates.at(point).end());
+            }
+            candidates.push_back(point_candidates);
+        }
+        // ========== check for previous matches and adjust candidate sets
+        for (int i = 0; i < S.size(); i++) {
+            int point = S[i];
+            if (currentBoundaryMatches.contains(point)) {
+                for (int potential_match : currentBoundaryMatches.at(point)) {
+                    bool hasMatchBefore = false;
+                    if (hasMatchBefore) {
+                        candidates[i].push_back(potential_match);
+                    } else {
+                        candidates[i] = {potential_match};
+                        hasMatchBefore = true;
+                    }
+                }
+            }
+        }
+        // starting finding matches for S -- every match should be a right match
+        vector<int> boundary_matches = viterbi(S, candidates, false, true);
+        // populate unordered_map<int, int> boundaryMatch
+        for (int i = 0; i < S.size(); i++)
+        {
+            boundaryMatch.insert({S[i], boundary_matches[i]});
+
+            // ========= populate current matches
+            if (currentBoundaryMatches.contains(boundary_matches[i])) {
+                currentMatches.at(boundary_matches[i]).push_back(S[i]);
+            }else {
+                currentMatches.insert({boundary_matches[i], {S[i]}});
+            }
+        }
+    }
 }
-
 
 // --------------------- Get matches functions ------------------------
 void Mesh::calculateTangentsAndBinormals(const vector<Vector3f> &vertices, const vector<Vector3f> &vertexNormals)
@@ -993,7 +1063,11 @@ void Mesh::calculateTangentsAndBinormals(const vector<Vector3f> &vertices, const
     {
         int n = line.size();
         // loop through all vertices on the line
-        Vector3f first_tangent = (vertices[line[1]] - vertices[line[0]]).normalized(); // tangent of the first vertex is just the line segment direction
+        Vector3f first_segment = (vertices[line[1]] - vertices[line[0]]).normalized(); // tangent of the first vertex is just the line segment direction
+        // ===== changed first tangent: need to project it onto the orthogonal direction of the normal!!
+        Vector3f cur_normal = vertexNormals[line[0]];
+        Vector3f first_segment_parallel = first_segment.dot(cur_normal) / (cur_normal.norm() * cur_normal.norm()) * cur_normal;
+        Vector3f first_tangent = (first_segment - first_segment_parallel).normalized();
         _vertices[line[0]]->tangent = first_tangent;
         _vertices[line[0]]->binormal = first_tangent.cross(vertexNormals[line[0]]).normalized();
 
@@ -1010,7 +1084,11 @@ void Mesh::calculateTangentsAndBinormals(const vector<Vector3f> &vertices, const
             _vertices[line[i]]->tangent = cur_tangent;
             _vertices[line[i]]->binormal = cur_tangent.cross(vertexNormals[line[i]]).normalized();
         }
-        Vector3f last_tangent = (vertices[line[n - 1]] - vertices[line[n - 2]]).normalized(); // tangent of the last vertex is just the line segment direction
+        Vector3f last_segment = (vertices[line[n - 1]] - vertices[line[n - 2]]).normalized(); // tangent of the last vertex is just the line segment direction
+        // ===== changed last tangent: need to project it onto the orthogonal direction of the normal!!
+        cur_normal = vertexNormals[line[n-1]];
+        Vector3f last_segment_parallel = last_segment.dot(cur_normal) / (cur_normal.norm() * cur_normal.norm()) * cur_normal;
+        Vector3f last_tangent = (last_segment - last_segment_parallel).normalized();
         _vertices[line[n - 1]]->tangent = last_tangent;
         _vertices[line[n - 1]]->binormal = last_tangent.cross(vertexNormals[line[n - 1]]).normalized();
     }
@@ -1088,13 +1166,24 @@ float Mesh::computeM(int pi, int qi, int pi_1, int qi_1, bool leftSide)
 
 }
 
+float Mesh::computeM_boundary(int pi, int qi, int pi_1, int qi_1, bool leftSide)
+{
+    float vv = vertexVertexScore(_vertices[pi_1], _vertices[qi_1], leftSide);
+    float pers = persistenceScore(_vertices[pi_1], _vertices[qi_1], _vertices[pi], _vertices[qi]);
+
+    // naively punish inconsecutive qi and qi-1 -- now check out boundary points
+    // if (abs(qi - qi_1) > 1) return 1e-10*vv*pers;
+    return vv * pers;
+
+}
+
 /**
  * @brief perform one viterbi on one stroke S to find the sequence of q's that maximizes the objective function of M_l
  * @param vector<Vertex*> S: stroke to be processed
  * @param vector<vector<Vertex*>> candidates: a vector of candidates vector<C(pi)> for each vertex pi in S
  * @return vector<Vertex*> Q: sequence of q's, each qi is the optimal match for each pi in S
  */
-vector<int> Mesh::viterbi(vector<int> S, vector<vector<int>> candidates, bool leftSide)
+vector<int> Mesh::viterbi(vector<int> S, vector<vector<int>> candidates, bool leftSide, bool boundary)
 {
     int k = 1;        // time index
     int K = S.size(); // number of steps = number of vertices in S
@@ -1158,7 +1247,9 @@ vector<int> Mesh::viterbi(vector<int> S, vector<vector<int>> candidates, bool le
             int max_prev = 0;
             for (int prev = 0; prev < candidates[prev_k].size(); prev++)
             {
-                float stepM = computeM(S[k], candidates[k][cur], S[prev_k], candidates[prev_k][prev], leftSide);
+                float stepM = 0.0;
+                if (boundary) stepM = computeM_boundary(S[k], candidates[k][cur], S[prev_k], candidates[prev_k][prev], leftSide);
+                else stepM = computeM(S[k], candidates[k][cur], S[prev_k], candidates[prev_k][prev], leftSide);
 
                 if (stepM * scores[prev][prev_k] > cur_max)
                 {
@@ -1251,8 +1342,8 @@ void Mesh::getMatches()
         }
 
         // starting finding matches for S
-        vector<int> left_matches = viterbi(S, left_candidates, true);
-        vector<int> right_matches = viterbi(S, right_candidates, false);
+        vector<int> left_matches = viterbi(S, left_candidates, true, false);
+        vector<int> right_matches = viterbi(S, right_candidates, false, false);
 
         // populate unordered_map<int, int> leftMatch and rightMatch
         for (int i = 0; i < S.size(); i++)
@@ -2044,31 +2135,37 @@ void Mesh::smoothBoundaries(){
 
 // re-calculate boundary binormals that point out from the surface
 // process each boundary in vector<pair<bool,vector<int>>> _boundaries, first recalculating tangents
-void Mesh::getNewBoundaryBinormals() {
+void Mesh::getNewBoundaryTangentsAndBinormals() {
     // If the vector represents a line, the bool is true. If the vector represents a cycle, the bool is false
     // For cycles, the start index is listed at the end as well
     for (auto & boundary_line : _boundaries) {
         for (int i = 0; i < boundary_line.second.size(); i++) {
             int boundary_vertex = boundary_line.second[i];
-            int neighbor1 = -1; int neighbor2 = -1;
             vector<int> line = boundary_line.second;
             int n = line.size();
             if (boundary_line.first) { // =========== it's a line
                 // get new tangents
                 // loop through all vertices on the line
-                Vector3f first_tangent = (_vertices[line[1]]->position - _vertices[line[0]]->position).normalized(); // tangent of the first vertex is just the line segment direction
+                Vector3f first_segment = (_vertices[line[1]]->position - _vertices[line[0]]->position).normalized(); // tangent of the first vertex is just the line segment direction
+                // ===== changed first tangent: need to project it onto the orthogonal direction of the normal!!
+                Vector3f cur_normal = _vertices[line[0]]->normal;
+                Vector3f first_segment_parallel = first_segment.dot(cur_normal) / (cur_normal.norm() * cur_normal.norm()) * cur_normal;
+                Vector3f first_tangent = (first_segment - first_segment_parallel).normalized();
+
                 _vertices[line[0]]->boundary_tangent = first_tangent;
                 _vertices[line[0]]->boundary_binormal = first_tangent.cross(_vertices[line[0]]->normal).normalized();
                 // check that the binormal is pointing outwards: get a random triangle at vertex line[0]
                 // unordered_map<int, vector<Vector3i>> vertexToTriangles;
-                Vector3i tri = vertexToTriangles.at(line[0])[0];
-                if (tri[0] != line[0]) {
+                Vector3i tri0 = vertexToTriangles.at(line[0])[0];
+                if (tri0[0] != line[0]) {
                     // use the vector tri[0] - line[0]: binormals should have negative dot product with this vector
-                    if (_vertices[line[0]]->boundary_binormal.dot(_vertices[tri[0]]->position - _vertices[line[0]]->position) > 0) _vertices[line[0]]->boundary_binormal = - _vertices[line[0]]->boundary_binormal;
+                    if (_vertices[line[0]]->boundary_binormal.dot(_vertices[tri0[0]]->position - _vertices[line[0]]->position) > 0) _vertices[line[0]]->boundary_binormal = - _vertices[line[0]]->boundary_binormal;
+                }else {
+                    // use the vector tri[1] - line[0]: binormals should have negative dot product with this vector
+                    if (_vertices[line[0]]->boundary_binormal.dot(_vertices[tri0[1]]->position - _vertices[line[0]]->position) > 0) _vertices[line[0]]->boundary_binormal = - _vertices[line[0]]->boundary_binormal;
                 }
 
-                for (int i = 1; i < n - 1; i++)
-                {
+                for (int i = 1; i < n - 1; i++) {
                     Vector3f curA = _vertices[line[i - 1]]->position;
                     Vector3f curB = _vertices[line[i]]->position;
                     Vector3f curC = _vertices[line[i + 1]]->position;
@@ -2079,12 +2176,65 @@ void Mesh::getNewBoundaryBinormals() {
                     Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
                     _vertices[line[i]]->boundary_tangent = cur_tangent;
                     _vertices[line[i]]->boundary_binormal = cur_tangent.cross(_vertices[line[i]]->normal).normalized();
+                    // check that the binormal is pointing outwards: get a random triangle at vertex B: line[i]
+                    // unordered_map<int, vector<Vector3i>> vertexToTriangles;
+                    Vector3i tri = vertexToTriangles.at(line[i])[0];
+                    if (tri[0] != line[i]) {
+                        // use the vector tri[0] - line[0]: binormals should have negative dot product with this vector
+                        if (_vertices[line[i]]->boundary_binormal.dot(_vertices[tri[0]]->position - _vertices[line[i]]->position) > 0) _vertices[line[i]]->boundary_binormal = - _vertices[line[i]]->boundary_binormal;
+                    }else {
+                        // use the vector tri[1] - line[0]: binormals should have negative dot product with this vector
+                        if (_vertices[line[i]]->boundary_binormal.dot(_vertices[tri[1]]->position - _vertices[line[i]]->position) > 0) _vertices[line[i]]->boundary_binormal = - _vertices[line[i]]->boundary_binormal;
+                    }
                 }
-                Vector3f last_tangent = (_vertices[line[n - 1]]->position - _vertices[line[n - 2]]->position).normalized(); // tangent of the last vertex is just the line segment direction
+                Vector3f last_segment = (_vertices[line[n - 1]]->position - _vertices[line[n - 2]]->position).normalized(); // tangent of the last vertex is just the line segment direction
+                // ===== changed last tangent: need to project it onto the orthogonal direction of the normal!!
+                cur_normal = _vertices[line[n-1]]->normal;
+                Vector3f last_segment_parallel = last_segment.dot(cur_normal) / (cur_normal.norm() * cur_normal.norm()) * cur_normal;
+                Vector3f last_tangent = (last_segment - last_segment_parallel).normalized();
                 _vertices[line[n - 1]]->boundary_tangent = last_tangent;
                 _vertices[line[n - 1]]->boundary_binormal = last_tangent.cross(_vertices[line[n - 1]]->normal).normalized();
+                // check that the binormal is pointing outwards: get a random triangle at vertex B: line[n-1]
+                // unordered_map<int, vector<Vector3i>> vertexToTriangles;
+                Vector3i tri = vertexToTriangles.at(line[n-1])[0];
+                if (tri[0] != line[n-1]) {
+                    // use the vector tri[0] - line[0]: binormals should have negative dot product with this vector
+                    if (_vertices[line[n-1]]->boundary_binormal.dot(_vertices[tri[0]]->position - _vertices[line[n-1]]->position) > 0) _vertices[line[n-1]]->boundary_binormal = - _vertices[line[n-1]]->boundary_binormal;
+                }else {
+                    // use the vector tri[1] - line[0]: binormals should have negative dot product with this vector
+                    if (_vertices[line[n-1]]->boundary_binormal.dot(_vertices[tri[1]]->position - _vertices[line[n-1]]->position) > 0) _vertices[line[n-1]]->boundary_binormal = - _vertices[line[n-1]]->boundary_binormal;
+                }
 
             }else { // it's a cycle
+                for (int i = 0; i < n; i++) {
+                    Vector3f curA, curC;
+                    Vector3f curB = _vertices[line[i]]->position;
+                    if (i == 0 || i == n-1) { // repeated vertex in the cycle -- first and last
+                        curA = _vertices[line[n - 2]]->position;
+                        curC = _vertices[line[1]]->position;
+                    }else {
+                        curA = _vertices[line[i - 1]]->position;
+                        curC = _vertices[line[i + 1]]->position;
+                    }
+                    Vector3f AC = curC - curA;
+                    Vector3f B_normal = _vertices[line[i]]->normal;
+                    Vector3f AC_parallel = AC.dot(B_normal) / (B_normal.norm() * B_normal.norm()) * B_normal; // AC projected onto the direction of normal
+
+                    Vector3f cur_tangent = (AC - AC_parallel).normalized(); // tangent at B
+                    _vertices[line[i]]->boundary_tangent = cur_tangent;
+                    _vertices[line[i]]->boundary_binormal = cur_tangent.cross(_vertices[line[i]]->normal).normalized();
+                    // check that the binormal is pointing outwards: get a random triangle at vertex B: line[i]
+                    // unordered_map<int, vector<Vector3i>> vertexToTriangles;
+                    Vector3i tri = vertexToTriangles.at(line[i])[0];
+                    if (tri[0] != line[i]) {
+                        // use the vector tri[0] - line[0]: binormals should have negative dot product with this vector
+                        if (_vertices[line[i]]->boundary_binormal.dot(_vertices[tri[0]]->position - _vertices[line[i]]->position) > 0) _vertices[line[i]]->boundary_binormal = - _vertices[line[i]]->boundary_binormal;
+                    }else {
+                        // use the vector tri[1] - line[0]: binormals should have negative dot product with this vector
+                        if (_vertices[line[i]]->boundary_binormal.dot(_vertices[tri[1]]->position - _vertices[line[i]]->position) > 0) _vertices[line[i]]->boundary_binormal = - _vertices[line[i]]->boundary_binormal;
+                    }
+                }
+
 
             }
 
