@@ -94,6 +94,7 @@ int main(int argc, char *argv[])
     //out of each face's indices
     m.debugSaveToFile();
 //    m.debugUndecidedTrianglesSaveToFile();
+//    m.debugIncompatibleTrianglesSaveToFile();
     std::cout << "Saved to file." << std::endl;
 
     // Clean up
