@@ -575,64 +575,107 @@ void Mesh::addedgetotrimap(int x, int y, Vector3i thetriangle){
     }
 }
 
-void Mesh::meshStripGeneration() {
+void Mesh::meshStripGeneration(bool boundary) {
     unordered_set<int> trihashes;
+    vector<vector<int>> strokes;
+    unordered_map<int, int> boundaryVertsToStrokes;
 
-    for (int i = 0; i < _lines.size(); i++)
+    if (boundary) {
+        // vector<pair<bool,vector<int>>> _boundaries; -> turn into a vector<vector<int>>
+        for (int i = 0; i < _boundaries.size(); i++) {
+            auto pair = _boundaries[i];
+            strokes.push_back(pair.second);
+            for (int boundary_vertex : pair.second) {
+                boundaryVertsToStrokes.insert({boundary_vertex, i});
+            }
+        }
+    } else {
+        strokes = _lines;
+    }
+
+    for (int i = 0; i < strokes.size(); i++)
     {
         // Go through the stroke
-        std::vector<int> currstroke = _lines[i];
+        std::vector<int> currstroke = strokes[i];
         for (int j = 0; j < currstroke.size() - 1; j++)
         {
             // Go through each vertex
             int pi = currstroke[j];
-            // Check if the next vertex even exists
-            if (leftMatch.contains(pi) && leftMatch.contains(pi + 1))
-            {
-                int qi = leftMatch.at(pi);
-                int qn = leftMatch.at(pi + 1);
-                if ((qi >= 0) && (qn >= 0) && (vertsToStrokes.at(qi) == vertsToStrokes.at(qn)))
+            if (!boundary) {
+                // Check if the next vertex even exists
+                if (leftMatch.contains(pi) && leftMatch.contains(pi + 1))
                 {
-                    // Both this and the next vertex have matches.
-                    std::vector<Vector3i> outtriangles = triangulatePair(pi, qi, pi + 1, qn);
-                    for (int k = 0; k < outtriangles.size(); k++)
+                    int qi = leftMatch.at(pi);
+                    int qn = leftMatch.at(pi + 1);
+                    if ((qi >= 0) && (qn >= 0) && (vertsToStrokes.at(qi) == vertsToStrokes.at(qn)))
                     {
-                        // Check if the triangle exists already
-                        int trihash = tohash(outtriangles[k], _vertices.size());
-                        if (!trihashes.contains(trihash))
+                        // Both this and the next vertex have matches.
+                        std::vector<Vector3i> outtriangles = triangulatePair(pi, qi, pi + 1, qn);
+                        for (int k = 0; k < outtriangles.size(); k++)
                         {
-                            _faces.push_back(outtriangles[k]);
-                            trihashes.insert(trihash);
-                            addedgetotrimap(outtriangles[k][0],outtriangles[k][1], outtriangles[k]);
-                            addedgetotrimap(outtriangles[k][1],outtriangles[k][2], outtriangles[k]);
-                            addedgetotrimap(outtriangles[k][2],outtriangles[k][0], outtriangles[k]);
+                            // Check if the triangle exists already
+                            int trihash = tohash(outtriangles[k], _vertices.size());
+                            if (!trihashes.contains(trihash))
+                            {
+                                _faces.push_back(outtriangles[k]);
+                                trihashes.insert(trihash);
+                                addedgetotrimap(outtriangles[k][0],outtriangles[k][1], outtriangles[k]);
+                                addedgetotrimap(outtriangles[k][1],outtriangles[k][2], outtriangles[k]);
+                                addedgetotrimap(outtriangles[k][2],outtriangles[k][0], outtriangles[k]);
+                            }
+                        }
+                    }
+                }
+                if (rightMatch.contains(pi) && rightMatch.contains(pi + 1))
+                {
+                    int qi = rightMatch.at(pi);
+                    int qn = rightMatch.at(pi + 1);
+                    if ((qi >= 0) && (qn >= 0) && (vertsToStrokes.at(qi) == vertsToStrokes.at(qn)))
+                    {
+                        // Both this and the next vertex have matches.
+                        std::vector<Vector3i> outtriangles = triangulatePair(pi, qi, pi + 1, qn);
+                        for (int k = 0; k < outtriangles.size(); k++)
+                        {
+                            // Check if the triangle exists already
+                            int trihash = tohash(outtriangles[k], _vertices.size());
+                            if (!trihashes.contains(trihash))
+                            {
+                                _faces.push_back(outtriangles[k]);
+                                trihashes.insert(trihash);
+                                addedgetotrimap(outtriangles[k][0],outtriangles[k][1], outtriangles[k]);
+                                addedgetotrimap(outtriangles[k][1],outtriangles[k][2], outtriangles[k]);
+                                addedgetotrimap(outtriangles[k][2],outtriangles[k][0], outtriangles[k]);
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Check if the next vertex even exists
+                if (boundaryMatch.contains(pi) && boundaryMatch.contains(currstroke[j+1]))
+                {
+                    int qi = boundaryMatch.at(pi);
+                    int qn = boundaryMatch.at(currstroke[j+1]);
+                    if ((qi >= 0) && (qn >= 0) && (boundaryVertsToStrokes.at(qi) == boundaryVertsToStrokes.at(qn)))
+                    {
+                        // Both this and the next vertex have matches.
+                        std::vector<Vector3i> outtriangles = triangulatePair(pi, qi, currstroke[j+1], qn);
+                        for (int k = 0; k < outtriangles.size(); k++)
+                        {
+                            // Check if the triangle exists already
+                            int trihash = tohash(outtriangles[k], _vertices.size());
+                            if (!trihashes.contains(trihash))
+                            {
+                                _faces.push_back(outtriangles[k]);
+                                trihashes.insert(trihash);
+                                // addedgetotrimap(outtriangles[k][0],outtriangles[k][1], outtriangles[k]);
+                                // addedgetotrimap(outtriangles[k][1],outtriangles[k][2], outtriangles[k]);
+                                // addedgetotrimap(outtriangles[k][2],outtriangles[k][0], outtriangles[k]);
+                            }
                         }
                     }
                 }
             }
-            if (rightMatch.contains(pi) && rightMatch.contains(pi + 1))
-            {
-                int qi = rightMatch.at(pi);
-                int qn = rightMatch.at(pi + 1);
-                if ((qi >= 0) && (qn >= 0) && (vertsToStrokes.at(qi) == vertsToStrokes.at(qn)))
-                {
-                    // Both this and the next vertex have matches.
-                    std::vector<Vector3i> outtriangles = triangulatePair(pi, qi, pi + 1, qn);
-                    for (int k = 0; k < outtriangles.size(); k++)
-                    {
-                        // Check if the triangle exists already
-                        int trihash = tohash(outtriangles[k], _vertices.size());
-                        if (!trihashes.contains(trihash))
-                        {
-                            _faces.push_back(outtriangles[k]);
-                            trihashes.insert(trihash);
-                            addedgetotrimap(outtriangles[k][0],outtriangles[k][1], outtriangles[k]);
-                            addedgetotrimap(outtriangles[k][1],outtriangles[k][2], outtriangles[k]);
-                            addedgetotrimap(outtriangles[k][2],outtriangles[k][0], outtriangles[k]);
-                        }
-                    }
-                }
-            }
+
         }
     }
 }

@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
     std::cout << "Got restricted matching candidates." << std::endl;
     m.getMatches();
     std::cout << "Finished matching." << std::endl;
-    m.meshStripGeneration();
+    m.meshStripGeneration(false); // bool : true if processing boundaries, false otherwise
     std::cout << "Generated mesh strips." << std::endl;
 
     // ------ Sec 5.4: Manifold Consolidation: Debug undecided triangle generation --------
@@ -89,6 +89,8 @@ int main(int argc, char *argv[])
     std::cout << "Sec6: Got restricted matching candidates for boundaries." << std::endl;
     m.getBoundaryMatches();
     std::cout << "Sec6: Finished matching boundaries." << std::endl;
+    // m.meshStripGeneration(true); // bool : true if processing boundaries, false otherwise
+    // std::cout << "Generated boundary mesh strips." << std::endl;
 
 
     // Finish timing

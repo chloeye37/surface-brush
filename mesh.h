@@ -57,7 +57,7 @@ public:
     void getMatches();
     void preprocessLines();
     void getRestrictedMatchingCandidates();
-    void meshStripGeneration();
+    void meshStripGeneration(bool boundary);
     void manifoldConsolidation();
 
     void computeUndecidedTriangles(); // temporarily public
