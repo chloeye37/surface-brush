@@ -203,6 +203,7 @@ void Mesh::debugSaveToFile()
     //    }
 
     // Write boundary matches to StrokeFile
+    int count_boundary_matches;
     for (size_t i = 0; i < _vertices.size(); i++)
     {
         if (boundaryMatch.contains(i))
@@ -210,10 +211,12 @@ void Mesh::debugSaveToFile()
             if (boundaryMatch.at(i) != -1)
             {
                 outStrokeFile << "l " << i + 1 << " " << boundaryMatch.at(i) + 1 << endl;
+                count_boundary_matches++;
                 // outMeshFile << "l " << i + 1 << " " << leftMatch.at(i) + 1 << endl;
             }
         }
     }
+    std::cout << "count_boundary_matches: " << count_boundary_matches << std::endl;
 
     // Look at all face hashes
     //    std::vector<int> facehashes = std::vector<int>();
@@ -726,7 +729,7 @@ void Mesh::meshStripGeneration(bool boundary) {
                     if ((qi >= 0) && (qn >= 0) && (boundaryVertsToStrokes.at(qi) == boundaryVertsToStrokes.at(qn)))
                     {
                         // Both this and the next vertex have matches.
-                        std::vector<Vector3i> outtriangles = triangulatePair(pi, qi, currstroke[j+1], qn);
+                        std::vector<Vector3i> outtriangles = triangulateBoundaryPair(pi, qi, currstroke[j+1], qn, boundaryVertsToStrokes.at(qn));
                         for (int k = 0; k < outtriangles.size(); k++)
                         {
                             // Check if the triangle exists already
@@ -735,9 +738,6 @@ void Mesh::meshStripGeneration(bool boundary) {
                             {
                                 _faces.push_back(outtriangles[k]);
                                 trihashes.insert(trihash);
-                                // addedgetotrimap(outtriangles[k][0],outtriangles[k][1], outtriangles[k]);
-                                // addedgetotrimap(outtriangles[k][1],outtriangles[k][2], outtriangles[k]);
-                                // addedgetotrimap(outtriangles[k][2],outtriangles[k][0], outtriangles[k]);
                             }
                         }
                     }
@@ -746,6 +746,75 @@ void Mesh::meshStripGeneration(bool boundary) {
 
         }
     }
+}
+std::vector<Vector3i> Mesh::triangulateBoundaryPair(int pi, int qi, int pn, int qn, int q_stroke_index) {
+    std::vector<Vector3i> triangles = std::vector<Vector3i>();
+    if (qi == qn)
+    {
+        triangles.push_back(Vector3i(pi, pn, qi));
+    }else {
+        // qi and qn should be on the same boundary stroke already
+        // check the entire stroke to get intermediate points
+        vector<int> qStroke = _boundaries[q_stroke_index].second;
+        int qi_index = 0; int qn_index = 0;
+        for (int i = 0; i < qStroke.size(); i++) { //
+            if (qi == qStroke[i]) qi_index = i;
+            else if (qn == qStroke[i]) qn_index = i;
+        }
+        if (abs(qi_index - qn_index) == 1) { // qi and qn are consecutive
+            // Get positions of all points
+            Vector3f pip = _vertices[pi]->position;
+            Vector3f qip = _vertices[qi]->position;
+            Vector3f pnp = _vertices[pn]->position;
+            Vector3f qnp = _vertices[qn]->position;
+            // Try both triangulations. Choose the one with a larger dihedral angle.
+            // Edit: Dihedral angle might not be great. Just do the one with the smaller diagonal difference.
+            if ((pip - qnp).norm() < (qip - pnp).norm())
+            {
+                triangles.push_back(Vector3i(pi, pn, qn));
+                triangles.push_back(Vector3i(pi, qi, qn));
+            }
+            else
+            {
+                triangles.push_back(Vector3i(qi, qn, pn));
+                triangles.push_back(Vector3i(qi, pi, pn));
+            }
+        } else { // more than one midpoints in between
+            // //There are a nonzero number of midpoints
+            // //For now, we choose a naive solution for triangulating. Splice along the approximate midpoint of the segment connecting qi to qn.
+            int i_mid = static_cast<int>(floor(0.5 * (static_cast<float>(qi_index) + static_cast<float>(qn_index))));
+
+            int ibegin;
+            int iend;
+            if (qi_index < qn_index)
+            {
+                ibegin = qi_index;
+                iend = qn_index;
+            }
+            else
+            {
+                ibegin = qn_index;
+                iend = qi_index;
+            }
+
+            // //Add above triangles
+            for (int i = ibegin; i < i_mid; i++)
+            {
+                triangles.push_back(Vector3i(pi, qStroke[i + 1], qStroke[i]));
+            }
+            // Add middle triangle
+            // i_mid should be between qi and qn
+            triangles.push_back(Vector3i(pi, pn, qStroke[i_mid]));
+            // I HAVE A FEELING QI AND QN ARE NOT ON THE SAME STROKE
+
+            // Add below triangles
+            for (int i = i_mid; i < iend; i++)
+            {
+                triangles.push_back(Vector3i(pn, qStroke[i + 1], qStroke[i]));
+            }
+        }
+    }
+    return triangles;
 }
 
 void Mesh::manifoldConsolidation()
@@ -1478,11 +1547,15 @@ void Mesh::getBoundaryCandidates() {
                     float angle = acos(pq.dot(p->boundary_binormal));
                     if (angle > M_PI / 180.f * 80.f) continue;
                     // Condition 1: length longer than dmax
-                    float length = pq.norm();
+                    float length = (q->position - p->position).norm();
                     float pStrokeWidth = p->strokeWidth; float qStrokeWidth = q->strokeWidth;
-                    float sigma = 1.38f/2.f*(pStrokeWidth + qStrokeWidth); // default: 1.5f/2.f*(pStrokeWidth + qStrokeWidth) -- 191 matches
+                    float sigma = 1.323f/2.f*(pStrokeWidth + qStrokeWidth); // default: 1.5f/2.f*(pStrokeWidth + qStrokeWidth) -- 191 matches
                     float dmax = componentIndex_avgDist[p->componentIndex]; // is this correct?
-                    if (length > sigma) continue;
+
+                    if (length > dmax) {
+                        continue;
+                    }
+
                     // if passes all conditions, add to the set
                     if (!boundaryRestrictedMatchingCandidates.contains(boundary_vertex_p)){
                         boundaryRestrictedMatchingCandidates.insert({boundary_vertex_p, unordered_set<int>()});
@@ -1984,21 +2057,18 @@ std::vector<Vector3i> Mesh::triangulatePair(int pi, int qi, int pn, int qn)
     {
         triangles.push_back(Vector3i(pi, pn, qi));
     }
-    else
-    {
+    else {
         // qi and qn are not the same
         int n_midpoints = intabs(qn - qi) - 1;
 
         if (n_midpoints == 0)
         {
             // qi and qn are consecutive
-
             // Get positions of all points
             Vector3f pip = _vertices[pi]->position;
             Vector3f qip = _vertices[qi]->position;
             Vector3f pnp = _vertices[pn]->position;
             Vector3f qnp = _vertices[qn]->position;
-
             // Try both triangulations. Choose the one with a larger dihedral angle.
             // Edit: Dihedral angle might not be great. Just do the one with the smaller diagonal difference.
             if ((pip - qnp).norm() < (qip - pnp).norm())

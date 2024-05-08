@@ -65,9 +65,6 @@ public:
 
     void cleanUp(); // perform any cleaning up at the end
 
-
-
-
     // ------- Get boundary points
     void computeBoundaries();
     void smoothBoundaries();
@@ -212,6 +209,7 @@ private:
     float computeM_boundary(int pi, int qi, int pi_1, int qi_1, bool leftSide);
 
     std::vector<Vector3i> triangulatePair(int pi, int qi, int pn, int qn);
+    std::vector<Vector3i> triangulateBoundaryPair(int pi, int qi, int pn, int qn, int q_stroke_index);
     // ------- mesh consolidation
     bool checkOverlap(int v, int v1, int v2, int v3, int v4);
     bool areVerticesContinuous(Vertex* v1, Vertex* v2);

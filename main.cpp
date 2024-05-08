@@ -89,14 +89,14 @@ int main(int argc, char *argv[])
     std::cout << "Computed boundaries." << std::endl;
     m.smoothBoundaries();
     std::cout << "Smoothed boundaries." << std::endl;
-//    m.getBoundaryCandidates();
-//    std::cout << "Sec6: Got restricted matching candidates for boundaries." << std::endl;
-//    m.getBoundaryMatches();
-//    std::cout << "Sec6: Finished matching boundaries." << std::endl;
-//    m.meshStripGeneration(true); // bool : true if processing boundaries, false otherwise
-//    std::cout << "Generated boundary mesh strips." << std::endl;
-//    m.manifoldConsolidation();
-//    std::cout << "Fixed mesh to be a manifold mesh, again." << std::endl;
+    m.getBoundaryCandidates();
+    std::cout << "Sec6: Got restricted matching candidates for boundaries." << std::endl;
+    m.getBoundaryMatches();
+    std::cout << "Sec6: Finished matching boundaries." << std::endl;
+    m.meshStripGeneration(true); // bool : true if processing boundaries, false otherwise
+    std::cout << "Generated boundary mesh strips." << std::endl;
+    m.manifoldConsolidation();
+    std::cout << "Fixed mesh to be a manifold mesh, again." << std::endl;
 
 
     // Finish timing
