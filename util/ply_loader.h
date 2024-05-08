@@ -14,6 +14,7 @@ namespace plyLoader {
 
 // load normals
 vector<pair<Vector3f,float>> loadFromFile(string fileName);
+vector<pair<Vector3f,float>> alternateloadFromFile(string fileName, vector<vector<int>> lines, vector<Vector3f> vertices);
 
 }
 

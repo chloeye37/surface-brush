@@ -8,27 +8,6 @@
 #include "mesh.h"
 #include "util/settings.h"
 
-std::vector<std::vector<int>> parse_to_polyline(std::vector<Eigen::Vector2i> connections)
-{
-    std::vector<std::vector<int>> polylines = std::vector<std::vector<int>>();
-    int index = 0;
-    while (index < connections.size())
-    {
-        std::vector<int> currentpoly = std::vector<int>();
-        currentpoly.push_back(connections[index][0]);
-        currentpoly.push_back(connections[index][1]);
-        while (connections[index + 1][0] == currentpoly[currentpoly.size() - 1])
-        {
-            currentpoly.push_back(connections[index + 1][1]);
-            index = index + 1;
-        }
-        polylines.push_back(currentpoly);
-        index = index + 1;
-    }
-    // One note. I'm not sure if this will add the last polyline. If not, run polylines.push_back one more time right here:
-    return polylines;
-}
-
 int main(int argc, char *argv[])
 {
     QCoreApplication a(argc, argv);
@@ -72,6 +51,14 @@ int main(int argc, char *argv[])
     std::cout << "Finished matching." << std::endl;
     m.meshStripGeneration();
     std::cout << "Generated mesh strips." << std::endl;
+    m.computeBoundaries();
+    std::cout << "Computed boundaries." << std::endl;
+
+    int smoothiterations = 0;
+    for(int i = 0; i < smoothiterations; i++){
+        m.smoothBoundaries();
+    }
+    std::cout << "Smoothed boundaries." << std::endl;
 
     // Finish timing
     auto t1 = std::chrono::high_resolution_clock::now();

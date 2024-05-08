@@ -46,6 +46,8 @@ public:
     void preprocessLines();
     void getRestrictedMatchingCandidates();
     void meshStripGeneration();
+    void computeBoundaries();
+    void smoothBoundaries();
 
     void cleanUp(); // perform any cleaning up at the end
 
@@ -57,10 +59,17 @@ private:
     vector<Vertex *> _vertices;
     vector<vector<int>> _lines;
     vector<Vector3i> _faces;
+
+    vector<pair<bool,vector<int>>> _boundaries;
     // ------- match computation
     unordered_map<int, int> leftMatch; // if the value is -1 then it doesn't have a match
     unordered_map<int, int> rightMatch;
     unordered_map<int, vector<int>> currentMatches; // map from vertex A to a list of vertices that have A as their match (either left or right)
+
+    map<pair<int,int>,vector<Vector3i>> edges_to_triangles;
+
+    void addedgetotrimap(int x, int y, Vector3i thetriangle);
+
     // ------- restricted matching
     // base vertex index : {
     //          other stroke index : {
