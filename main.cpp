@@ -34,6 +34,7 @@ int main(int argc, char *argv[])
     appSettings->outStrokeFile = settings.value("IO/outStrokeFile").toString().toStdString();
     appSettings->outMeshFile = settings.value("IO/outMeshFile").toString().toStdString();
     appSettings->isDebug = settings.value("Debug/isDebug").toBool();
+    appSettings->noOfNearEndVerticesToConsider = settings.value("Params/noOfNearEndVerticesToConsider").toInt();
 
     // Load
     Mesh m;
@@ -60,6 +61,13 @@ int main(int argc, char *argv[])
     }
     std::cout << "Smoothed boundaries." << std::endl;
 
+    // ------ Debug undecided triangle generation --------
+//    m.computeUndecidedTriangles();
+//    std::cout << "Computed undecided triangles." << std::endl;
+    m.manifoldConsolidation();
+    std::cout << "Fixed mesh to be a manifold mesh." << std::endl;
+
+
     // Finish timing
     auto t1 = std::chrono::high_resolution_clock::now();
     auto duration = duration_cast<std::chrono::milliseconds>(t1 - t0).count();
@@ -72,6 +80,8 @@ int main(int argc, char *argv[])
     //between edges are directed(Chloe knows about this). One way to make sure we don't double coumt faces is to make a hash
     //out of each face's indices
     m.debugSaveToFile();
+//    m.debugUndecidedTrianglesSaveToFile();
+//    m.debugIncompatibleTrianglesSaveToFile();
     std::cout << "Saved to file." << std::endl;
 
     // Clean up
