@@ -75,6 +75,8 @@ int main(int argc, char *argv[])
     std::cout << "Finished matching." << std::endl;
     m.meshStripGeneration(false); // bool : true if processing boundaries, false otherwise
     std::cout << "Generated mesh strips." << std::endl;
+    m.cleanFaces();
+    std::cout << "Cleaned duplicates & unwanted triangles." << std::endl;
 
     // ------ Sec 5.4: Manifold Consolidation: Debug undecided triangle generation --------
     //    m.computeUndecidedTriangles();
@@ -95,8 +97,10 @@ int main(int argc, char *argv[])
     std::cout << "Sec6: Finished matching boundaries." << std::endl;
     m.meshStripGeneration(true); // bool : true if processing boundaries, false otherwise
     std::cout << "Generated boundary mesh strips." << std::endl;
-    m.manifoldConsolidation();
-    std::cout << "Fixed mesh to be a manifold mesh, again." << std::endl;
+    m.cleanFaces();
+    std::cout << "Cleaned duplicates & unwanted triangles." << std::endl;
+//    m.manifoldConsolidation();
+//    std::cout << "Fixed mesh to be a manifold mesh, again." << std::endl;
 
 
     // Finish timing

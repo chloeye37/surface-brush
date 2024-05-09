@@ -848,6 +848,62 @@ void Mesh::manifoldConsolidation()
     this->_faces = outputTriangles;
 }
 
+bool isTriangleValid(Vector3i face) {
+    int v1 = face[0];
+    int v2 = face[1];
+    int v3 = face[2];
+    if (v1 == v2 || v2 == v3 || v1 == v3) return false;
+    if (v1 < 0 || v2 < 0 || v3 < 0) return false;
+//    if (v1 > this->_vertices.size() - 1 || v2 > this->_vertices.size() - 1) // not a mesh func, so cant use 'this', but im lazy
+    return true;
+}
+
+tuple<int, int, int> makeOrderedTuple(Vector3i face) {
+    int v1 = face[0];
+    int v2 = face[1];
+    int v3 = face[2];
+    int minVert = min(v1, min(v2, v3));
+    int maxVert = max(v1, max(v2, v3));
+    int midVert;
+    if (v1 == minVert) {
+        if (v2 == maxVert) {
+            midVert = v3;
+        } else {
+            midVert = v2;
+        }
+    } else if (v2 == minVert) {
+        if (v1 == maxVert) {
+            midVert = v3;
+        } else {
+            midVert = v1;
+        }
+    } else { // v3 == minVert
+        if (v1 == maxVert) {
+            midVert = v2;
+        } else {
+            midVert = v1;
+        }
+    }
+    return make_tuple(minVert, midVert, maxVert);
+}
+
+/**
+ * @brief Mesh::cleanFaces
+ * Purpose: to remove duplicated faces
+ */
+void Mesh::cleanFaces() {
+    vector<Vector3i> newFaces;
+    set<tuple<int,int,int>> seenFaces;
+    for (const Vector3i& face : this->_faces) {
+        tuple<int,int,int> faceTuple = makeOrderedTuple(face);
+        if (isTriangleValid(face) && !seenFaces.contains(faceTuple)) {
+            newFaces.push_back(face);
+            seenFaces.insert(faceTuple);
+        }
+    }
+    this->_faces = newFaces;
+}
+
 void Mesh::cleanUp()
 {
     for (int i = 0; i < this->_vertices.size(); i++)

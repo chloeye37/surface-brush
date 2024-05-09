@@ -60,6 +60,7 @@ public:
     void getRestrictedMatchingCandidates();
     void meshStripGeneration(bool boundary);
     void manifoldConsolidation();
+    void cleanFaces();
 
     void computeUndecidedTriangles(); // temporarily public
 
